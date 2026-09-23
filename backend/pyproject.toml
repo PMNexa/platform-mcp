@@ -2,6 +2,7 @@
 name = "platform-mcp-backend"
 version = "0.1.0"
 description = "platform-mcp's Django app - an MCP server over every platform-core BaseViewSet, plus personal access tokens (PATs) for MCP clients. Importable by a host app's INSTALLED_APPS, same packaging pattern as platform-org."
+license = { text = "PolyForm-Shield-1.0.0" }
 requires-python = ">=3.11"
 dependencies = [
     "django>=5.2,<6.0",

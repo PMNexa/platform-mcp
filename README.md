@@ -200,3 +200,17 @@ python manage.py test tests --settings=config.test_settings
 ```
 
 See [AGENTS.md](AGENTS.md) for how it works and how a host wires it in.
+
+## License
+
+platform-mcp is **source-available** under the [PolyForm Shield License 1.0.0](LICENSE).
+You may use, modify and share it for any purpose, including inside your
+company, **except** providing a product or service that competes with it or
+with the licensor's products. That means no hosting it as a paid service and
+no selling it or a modified copy of it. For uses the license doesn't allow,
+ask about a commercial license. Contributions are accepted under the
+[Contributor License Agreement](CONTRIBUTING.md#contributor-license-agreement).
+
+Versions up to and including commit `9321f4f` were published under the
+MIT License, and copies of those versions remain available under MIT. Later
+versions are PolyForm Shield only.
