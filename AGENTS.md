@@ -18,7 +18,9 @@ pattern as platform-org (see the GoalNexa root AGENTS.md).
 | `views.py` | `McpView` (= server + PAT auth + `IsAuthenticated`) and the token API. |
 | `authentication.py` | `PersonalAccessTokenAuthentication`, `ActorStub`. |
 | `models.py` | `PersonalAccessToken` (hash only; `user_id` is a bare string). |
-| `urls.py` | `mcp`, `mcp/tokens`, `mcp/tokens/<id>` - mount under the API prefix. |
+| `skills.py` | Agent-skills discovery (`mcp_skills/` in installed apps) and rendering. |
+| `skills_index.md` | The skills index template = the one-prompt install procedure. |
+| `urls.py` | `mcp`, `mcp/tokens`, `mcp/tokens/<id>`, `mcp/skills`, `mcp/skills/<name>/<file>` (namespace `platform_mcp`) - mount under the API prefix. |
 
 **Tools**: `<resource>_schema/_list/_get/_create/_update/_delete`, plus
 `_link/_unlink` when the resource has a many-to-many relation.
@@ -64,9 +66,33 @@ is written at most once a minute. A PAT resolves to `ActorStub(id=
 user_id)` - `.id` is all the resource views read (true of platform-org
 and goalnexa); a view needing a real `User` would break under a PAT.
 
+A tool call that raises (the API crashed instead of answering) becomes
+that tool's `isError` result (`HTTP 500`, generic message, logged), not
+a 500 for the whole JSON-RPC request.
+
+**Agent skills** (`skills.py`): a skill is `mcp_skills/<name>/SKILL.md`
+(+ any files it references) inside ANY installed app, found like
+`templates/` - nothing to register; the domain module owns the content
+(goalnexa: check-in / review / plan), this module the mechanism. Served
+publicly (plain Django views, markdown, no auth - instructions, no data;
+an agent reads them before it has a token): `GET mcp/skills` renders
+`skills_index.md` - the install procedure an agent follows from the one
+line "Install the <name> skills from <url>" (check/connect MCP, pick the
+client's skills folder, download each file verbatim, confirm before
+overwriting) - and `GET mcp/skills/<name>/<file>` serves a file, never
+outside its skill folder. Every served file is rendered with
+`{{app_url}}`/`{{mcp_url}}`/`{{skills_url}}`/`{{tokens_url}}`/
+`{{server_name}}` (unknown placeholders stay as-is); the URLs come from
+`reverse()` + the request origin, or `MCP_PUBLIC_URL` behind a proxy
+that rewrites Host/scheme - which is why the gateway must forward the
+client's real `Host` with its port (GoalNexa's nginx uses `$http_host`).
+Skills must only use the MCP tools (no REST/ORM assumptions), since
+that's all a client has.
+
 Settings (all optional): `MCP_SERVER_NAME`, `MCP_SERVER_VERSION`,
 `MCP_INSTRUCTIONS`, `MCP_TOKEN_PREFIX` (default `pat_`; GoalNexa uses
-`gnx_`).
+`gnx_`), `MCP_PUBLIC_URL`, `MCP_TOKENS_PAGE` (frontend path of the
+tokens page, default `/mcp`).
 
 Host wiring: `pip install -e` this `backend/` (next to platform-core's),
 add `"platform_mcp"` to `INSTALLED_APPS`, `path("api/v1/",
@@ -94,5 +120,6 @@ step with README.md.
 
 `cd backend && python manage.py test tests --settings=config.test_settings`
 (see README.md for the venv). `tests/testapp` has the same models as
-platform-core's, scoped to `request.user.id`, and an `X-As: <id>`
-header login standing in for the host's.
+platform-core's, scoped to `request.user.id`, an `X-As: <id>`
+header login standing in for the host's, and a `demo-skill` under
+`tests/testapp/mcp_skills/`.

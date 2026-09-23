@@ -12,6 +12,9 @@ clients and a frontend page to manage them. A host app (GoalNexa's
 - **Frontend**: the `platform-mcp-frontend` package (`frontend/`). One
   "MCP access" page to create and revoke tokens, with setup steps for
   each client below, filled in with the server URL and the new token.
+- **Agent skills**: any installed app can ship `mcp_skills/<name>/SKILL.md`
+  playbooks. The instance serves them, plus an index that doubles as a
+  one-line install prompt (see "Agent skills" below).
 
 ## Using it with an AI client
 
@@ -160,6 +163,24 @@ curl -s https://your-host/api/v1/mcp \
 ```
 
 A `401` means the token is wrong, expired or revoked.
+
+### Agent skills: install with one prompt
+
+Paste this into your assistant (the MCP access page shows it with your
+host filled in):
+
+```text
+Install the <server name> skills from https://your-host/api/v1/mcp/skills
+```
+
+That URL serves the install procedure itself, in markdown, with this
+instance's URLs filled in. The assistant checks the MCP connection
+(asking for a token and connecting the server if needed), downloads each
+skill from `https://your-host/api/v1/mcp/skills/<name>/SKILL.md`, and
+saves it where its client loads skills: `~/.claude/skills/` for Claude
+Code, `~/.codex/skills/` for Codex, or the project's `.claude/skills/` if
+you say "for this project only". It asks before overwriting a skill you
+already have. Repeat the prompt to update.
 
 ### Tips for prompting
 

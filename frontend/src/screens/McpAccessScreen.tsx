@@ -107,6 +107,8 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
     }
   }
 
+  const skillsUrl = `${mcpUrl}/skills`;
+  const skillsPrompt = `Install the ${server?.name ?? "MCP"} skills from ${skillsUrl}`;
   const client = MCP_CLIENTS.find((candidate) => candidate.id === clientId) ?? MCP_CLIENTS[0];
   const snippet = client.snippet({ name: server?.name ?? "mcp", url: mcpUrl, token: created?.token ?? TOKEN_PLACEHOLDER });
 
@@ -266,6 +268,29 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
             </CardBody>
           </div>
         </div>
+      </Card>
+
+      <Card className="mt-3">
+        <CardHeader>
+          <CardTitle>Agent skills</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <p className="text-secondary">
+            Skills are ready-made playbooks that teach your assistant the everyday jobs in{" "}
+            {server?.name ?? "this app"}, on top of the raw tools. To install them, paste this into Claude Code, Codex or
+            any agent that supports skills. It also walks through connecting the server if that isn't done yet.
+          </p>
+          <div className="d-flex gap-2">
+            <FormControl id="mcp-skills-prompt" readOnly value={skillsPrompt} onFocus={(event) => event.target.select()} />
+            <CopyButton text={skillsPrompt} />
+          </div>
+          <small className="form-hint">
+            <a href={skillsUrl} target="_blank" rel="noreferrer">
+              See what gets installed
+            </a>
+            . Run the same prompt again to update them.
+          </small>
+        </CardBody>
       </Card>
 
       <NewTokenModal

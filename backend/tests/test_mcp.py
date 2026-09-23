@@ -1,4 +1,5 @@
 import json
+from unittest import mock
 
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -125,3 +126,15 @@ class McpTests(TestCase):
     def test_unknown_tool(self):
         response = self.rpc("tools/call", {"name": "nope_list", "arguments": {}})
         self.assertEqual(response["error"]["code"], -32602)
+
+    def test_bad_filter_is_a_tool_error(self):
+        error, text = self.call("books_list", filter={"title.name.icontains": "x"})
+        self.assertTrue(error)
+        self.assertIn("HTTP 400", text)
+
+    def test_crash_behind_a_tool_is_a_tool_error(self):
+        with mock.patch("platform_mcp.server._call_api", side_effect=RuntimeError("boom")), self.assertLogs("platform_mcp.server"):
+            error, text = self.call("books_list")
+        self.assertTrue(error)
+        self.assertIn("HTTP 500", text)
+        self.assertNotIn("boom", text)

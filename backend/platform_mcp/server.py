@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import re
 from urllib.parse import urlencode
 
@@ -37,6 +38,8 @@ from django.core.handlers.wsgi import WSGIRequest
 from django.urls import Resolver404, resolve
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+logger = logging.getLogger(__name__)
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 
@@ -353,6 +356,12 @@ class McpServerView(APIView):
                 status, data = _call_tool(request, name, params.get("arguments") or {})
             except KeyError:
                 raise _RpcError(-32602, f"Unknown tool: {name}") from None
+            except Exception:
+                # A bug behind one tool call (the API raised instead of
+                # answering) is that call's error, not the whole MCP
+                # request's - the client sees a tool error it can report.
+                logger.exception("MCP tool %s failed", name)
+                status, data = 500, {"code": "server_error", "message": "The server failed to handle this call."}
             return _tool_result(status, data)
         raise _RpcError(-32601, f"Method not found: {method}")
 
