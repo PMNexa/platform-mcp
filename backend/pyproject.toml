@@ -1,0 +1,29 @@
+[project]
+name = "platform-mcp-backend"
+version = "0.1.0"
+description = "platform-mcp's Django app - an MCP server over every platform-core BaseViewSet, plus personal access tokens (PATs) for MCP clients. Importable by a host app's INSTALLED_APPS, same packaging pattern as platform-org."
+requires-python = ">=3.11"
+dependencies = [
+    "django>=5.2,<6.0",
+    "djangorestframework>=3.15",
+    "uuid6>=2024.1.12",
+]
+# platform-core-backend (core_api: registry, BaseViewSet, errors, uuid7)
+# is a real runtime dependency, not listed here - it isn't published
+# anywhere pip can resolve a name to, so whoever installs this package
+# must also `pip install -e` a checkout of platform-core/backend
+# (apps/main's docker-compose does this already).
+
+[project.optional-dependencies]
+dev = ["ruff>=0.6"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["platform_mcp*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

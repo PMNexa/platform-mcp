@@ -1,0 +1,95 @@
+import axios from "axios";
+import type { AxiosRequestConfig } from "axios";
+
+/**
+ * No token store of its own - the host passes the session's access
+ * token in (same as goalnexa-frontend). The paths are where a host
+ * mounts `platform_mcp.urls` (`api/v1/`), like every other module's
+ * frontend package hardcodes its own API paths.
+ */
+export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? "";
+export const MCP_PATH = "/api/v1/mcp";
+
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(message: string, status: number, body?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+async function apiRequest<T>(path: string, accessToken: string, config?: AxiosRequestConfig): Promise<T> {
+  const url = `${API_BASE_URL}${path}`;
+  try {
+    const response = await axios.request<T>({
+      url,
+      ...config,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}`, ...config?.headers },
+    });
+    return (response.status === 204 ? undefined : response.data) as T;
+  } catch (error) {
+    if (!axios.isAxiosError(error)) throw error;
+    if (!error.response) throw new ApiError(error.message || "Network request failed", 0);
+    const { status, data: body } = error.response;
+    const fieldErrors = (body as { field_errors?: Record<string, string[]> } | null)?.field_errors;
+    const message = fieldErrors
+      ? Object.entries(fieldErrors)
+          .map(([field, errors]) => `${field}: ${errors.join(" ")}`)
+          .join("; ")
+      : typeof (body as { message?: unknown } | null)?.message === "string"
+        ? (body as { message: string }).message
+        : `Request to ${url} failed with status ${status}`;
+    throw new ApiError(message, status, body);
+  }
+}
+
+export interface AccessToken {
+  id: string;
+  name: string;
+  /** The token's first characters, to tell tokens apart. */
+  prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+}
+
+/** The create response - the only time `token` itself is ever sent. */
+export interface CreatedAccessToken extends AccessToken {
+  token: string;
+}
+
+export async function listTokens(accessToken: string): Promise<AccessToken[]> {
+  const body = await apiRequest<{ items: AccessToken[] }>(`${MCP_PATH}/tokens`, accessToken);
+  return body.items;
+}
+
+export function createToken(
+  accessToken: string,
+  input: { name: string; expires_in_days: number | null },
+): Promise<CreatedAccessToken> {
+  return apiRequest<CreatedAccessToken>(`${MCP_PATH}/tokens`, accessToken, { method: "POST", data: input });
+}
+
+export function revokeToken(accessToken: string, id: string): Promise<void> {
+  return apiRequest<void>(`${MCP_PATH}/tokens/${id}`, accessToken, { method: "DELETE" });
+}
+
+export interface ServerInfo {
+  name: string;
+  toolCount: number;
+}
+
+/** Asks the MCP server itself (as the logged-in user) for its name and tool count. */
+export async function fetchServerInfo(accessToken: string): Promise<ServerInfo> {
+  const rpc = <T,>(id: number, method: string, params: object = {}) =>
+    apiRequest<{ result: T }>(MCP_PATH, accessToken, { method: "POST", data: { jsonrpc: "2.0", id, method, params } });
+  const [init, tools] = await Promise.all([
+    rpc<{ serverInfo: { name: string } }>(1, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "platform-mcp-frontend", version: "0" } }),
+    rpc<{ tools: unknown[] }>(2, "tools/list"),
+  ]);
+  return { name: init.result.serverInfo.name, toolCount: tools.result.tools.length };
+}
