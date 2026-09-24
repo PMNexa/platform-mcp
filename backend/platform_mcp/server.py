@@ -199,7 +199,11 @@ def _tools_for(key: str, schema: dict) -> list[dict]:
             "annotations": {"destructiveHint": True},
         },
     ]
-    if m2m:
+    # Only tools the caller can use: the schema's `can` (platform-core -
+    # the viewset serves it and the host's access policy allows it).
+    can = schema.get("can") or {}
+    tools = [t for t in tools if can.get(t["name"].removeprefix(f"{key}_"), True)]
+    if m2m and can.get("update", True):
         relation = {"type": "string", "enum": [f["name"] for f in m2m]}
         ids = {"type": "array", "items": _ID_SCHEMA, "minItems": 1}
         through = {

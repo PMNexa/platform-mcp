@@ -9,5 +9,7 @@
 export { default as McpAccessScreen } from "./screens/McpAccessScreen";
 export type { McpAccessScreenProps } from "./screens/McpAccessScreen";
 export { createMcpRoutes } from "./mcpRoutes";
+// Its sidebar entry - same `basePath` as `createMcpRoutes`.
+export { createMcpNavItems } from "./mcpNav";
 export { MCP_CLIENTS } from "./lib/clients";
 export type { McpClient, McpConnection } from "./lib/clients";

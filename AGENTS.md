@@ -24,7 +24,10 @@ pattern as platform-org (see the GoalNexa root AGENTS.md).
 
 **Tools**: `<resource>_schema/_list/_get/_create/_update/_delete`, plus
 `_link/_unlink` when the resource has a many-to-many relation.
-`<resource>` is the endpoint's last path segment with non-word chars as
+Only tools the caller can use are listed: a resource whose `schema` the
+caller can't read is left out, and so is each `_create/_update/_delete`
+(and `_link/_unlink`) the schema's `can` says no to (platform-core's
+access policy - e.g. RBAC). `<resource>` is the endpoint's last path segment with non-word chars as
 `_` (`/api/v1/check-ins` → `check_ins_list`). A resource shows up when it
 has both a `BaseViewSet` (auto-registered) and a
 `register_model_endpoint` call; `mcp_enabled = False` on the viewset
@@ -102,6 +105,11 @@ Gap: the registry path is resolved as-is, so a module mounted under a
 gateway prefix the backend never sees would 404.
 
 ## Frontend (`platform-mcp-frontend`)
+
+`createMcpNavItems(basePath)` (`src/mcpNav.tsx`, from `"."`) is its
+"MCP access" sidebar link with its own icon - same `basePath` as the
+routes; apps/main spreads it into `app-shell.tsx`'s `NAV_ITEMS`. No
+`permission` on it: every signed-in user manages their own tokens.
 
 `createMcpRoutes(basePath)` (from `"."`) registers one route file,
 `routes/mcp.tsx`, which reads the access token from the host layout's
