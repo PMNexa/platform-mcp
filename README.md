@@ -45,10 +45,16 @@ the rest of the API, and can't create or revoke other tokens.
 1. In Claude, open **Settings → Connectors** and click **Add custom
    connector**.
 2. Name: `goalnexa`. Remote MCP server URL:
-   `https://your-host/api/v1/mcp`. Leave Advanced settings empty.
-3. Click **Add**, then **Connect**. A window opens on your instance:
+   `https://your-host/api/v1/mcp`.
+3. If Claude shows sign-in settings, keep the ones it marks **Detected**:
+   - **Authentication: Sign in now** - every tool needs an account.
+   - **OAuth client: Register automatically** - the server supports
+     Dynamic Client Registration. Not "Use Claude's published identity"
+     (CIMD): the server doesn't support it, so connecting would fail.
+   - **Request headers:** none.
+4. Click **Add**, then **Connect**. A window opens on your instance:
    sign in if asked, then click **Allow**.
-4. In a chat, turn the connector on from the tools menu (**+**).
+5. In a chat, turn the connector on from the tools menu (**+**).
 
 A connector added on claude.ai also works in the desktop and mobile
 apps. On a Team or Enterprise plan, an owner adds it once under

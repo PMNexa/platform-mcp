@@ -41,12 +41,13 @@ export const MCP_CLIENTS: McpClient[] = [
     usesToken: false,
     steps: [
       "In Claude - the desktop app or claude.ai - open Settings → Connectors and click “Add custom connector”.",
-      "Enter the name and URL below and leave Advanced settings empty, then click Add.",
+      "Enter the name and URL below. If Claude shows sign-in settings, pick Authentication “Sign in now” and OAuth client “Register automatically” (both marked Detected), and add no request headers. Don't pick “Use Claude's published identity”: this server doesn't support it. Then click Add.",
       "Click Connect. A window opens on this site: sign in if asked, then click Allow.",
       "In a chat, turn the connector on from the tools menu (+). A connector added on claude.ai works in the desktop and mobile apps too. On a Team or Enterprise plan, an owner adds it once under Organization settings → Connectors, then each member clicks Connect.",
     ],
     language: "text",
-    snippet: ({ name, url }) => `Name: ${name}\nRemote MCP server URL: ${url}`,
+    snippet: ({ name, url }) =>
+      `Name: ${name}\nRemote MCP server URL: ${url}\nAuthentication: Sign in now\nOAuth client: Register automatically\nRequest headers: (none)`,
     verify: "Settings → Connectors shows it as connected, and it appears on this page under Connected apps.",
   },
   {
