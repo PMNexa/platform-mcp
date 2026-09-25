@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework import serializers
 
-from platform_mcp.models import PersonalAccessToken
+from platform_mcp.models import OAuthGrant, PersonalAccessToken
 
 
 class PersonalAccessTokenSerializer(serializers.ModelSerializer):
@@ -21,3 +21,14 @@ class CreatePersonalAccessTokenSerializer(serializers.Serializer):
     def expires_at(self):
         days = self.validated_data.get("expires_in_days")
         return timezone.now() + timedelta(days=days) if days else None
+
+
+class OAuthGrantSerializer(serializers.ModelSerializer):
+    """A connected app, as the "MCP access" page lists it."""
+
+    client_name = serializers.CharField(source="client.name")
+
+    class Meta:
+        model = OAuthGrant
+        fields = ["id", "client_name", "created_at", "last_used_at"]
+        read_only_fields = fields

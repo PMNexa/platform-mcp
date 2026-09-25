@@ -68,3 +68,83 @@ class PersonalAccessToken(models.Model):
     @property
     def is_expired(self) -> bool:
         return self.expires_at is not None and self.expires_at <= timezone.now()
+
+
+# --- OAuth 2.1 (oauth.py) -------------------------------------------------
+#
+# How clients that can't send a static bearer token (Claude's custom
+# connectors) sign in: they register themselves (`OAuthClient`), send the
+# user to the consent page, trade the resulting `OAuthAuthorizationCode`
+# for an `OAuthGrant` - one per connection, what the user sees and can
+# revoke - and call the MCP endpoint with its short-lived
+# `OAuthAccessToken`s. Every secret is stored as a SHA-256 only, like a
+# PAT.
+
+# Distinct from any PAT prefix, so each authentication class can tell
+# its own tokens apart without a lookup.
+OAUTH_ACCESS_TOKEN_PREFIX = "mcpat_"
+OAUTH_REFRESH_TOKEN_PREFIX = "mcprt_"
+
+
+def random_secret(prefix: str = "", length: int = 40) -> str:
+    return prefix + "".join(secrets.choice(_ALPHABET) for _ in range(length))
+
+
+class OAuthClient(models.Model):
+    """A client registered through Dynamic Client Registration (RFC 7591).
+    Public (`token_endpoint_auth_method = "none"`, PKCE only) unless it
+    asked for a secret."""
+
+    id = models.UUIDField(primary_key=True, default=generate_uuid7, editable=False)
+    client_id = models.CharField(max_length=64, unique=True)
+    client_secret_hash = models.CharField(max_length=64, blank=True)
+    token_endpoint_auth_method = models.CharField(max_length=32, default="none")
+    name = models.CharField(max_length=200)
+    redirect_uris = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class OAuthAuthorizationCode(models.Model):
+    """What the consent page's "Allow" produces: single use, short-lived,
+    bound to the client, redirect URI and PKCE challenge it was issued
+    for."""
+
+    id = models.UUIDField(primary_key=True, default=generate_uuid7, editable=False)
+    code_hash = models.CharField(max_length=64, unique=True)
+    client = models.ForeignKey(OAuthClient, on_delete=models.CASCADE, related_name="+")
+    user_id = models.CharField(max_length=64)
+    redirect_uri = models.TextField()
+    code_challenge = models.CharField(max_length=128)
+    scope = models.CharField(max_length=200, blank=True)
+    resource = models.TextField(blank=True)
+    expires_at = models.DateTimeField()
+
+
+class OAuthGrant(models.Model):
+    """One connected app: a user's approval of a client, alive for as long
+    as its (rotating) refresh token keeps being used. Deleting it cuts the
+    connection - its access tokens go with it."""
+
+    id = models.UUIDField(primary_key=True, default=generate_uuid7, editable=False)
+    client = models.ForeignKey(OAuthClient, on_delete=models.CASCADE, related_name="grants")
+    user_id = models.CharField(max_length=64, db_index=True)
+    scope = models.CharField(max_length=200, blank=True)
+    resource = models.TextField(blank=True)
+    refresh_token_hash = models.CharField(max_length=64, unique=True)
+    refresh_expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class OAuthAccessToken(models.Model):
+    id = models.UUIDField(primary_key=True, default=generate_uuid7, editable=False)
+    grant = models.ForeignKey(OAuthGrant, on_delete=models.CASCADE, related_name="access_tokens")
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+
+    @property
+    def is_expired(self) -> bool:
+        return self.expires_at <= timezone.now()

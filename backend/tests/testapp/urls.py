@@ -13,4 +13,8 @@ router.register("clubs", ClubViewSet, basename="clubs")
 for model, endpoint in ((Shelf, "/shelves"), (Tag, "/tags"), (Book, "/books"), (Club, "/clubs")):
     register_model_endpoint(model, endpoint)
 
-urlpatterns = [*router.urls, path("", include("platform_mcp.urls"))]
+urlpatterns = [
+    *router.urls,
+    path("", include("platform_mcp.urls")),
+    path("", include("platform_mcp.wellknown_urls")),
+]

@@ -4,10 +4,13 @@ import {
   API_BASE_URL,
   MCP_PATH,
   createToken,
+  disconnectApp,
   fetchServerInfo,
+  listConnectedApps,
   listTokens,
   revokeToken,
   type AccessToken,
+  type ConnectedApp,
   type CreatedAccessToken,
   type ServerInfo,
 } from "../lib/api";
@@ -68,7 +71,8 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
 
 /**
  * The "MCP access" page: the caller's personal access tokens (create,
- * revoke - a token is shown once, right after it's created) and a
+ * revoke - a token is shown once, right after it's created), the apps
+ * connected through OAuth (e.g. a Claude connector; disconnect) and a
  * per-client guide for connecting an AI client to the MCP server, its
  * snippets filled in with this server's URL and name (asked from the
  * server itself) and the just-created token.
@@ -81,6 +85,7 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
   const [server, setServer] = useState<ServerInfo | null>(null);
   const mcpUrl = useSyncExternalStore(subscribeNever, absoluteMcpUrl, () => `${API_BASE_URL}${MCP_PATH}`);
   const [clientId, setClientId] = useState(MCP_CLIENTS[0].id);
+  const [apps, setApps] = useState<ConnectedApp[] | null>(null);
 
   const refresh = useCallback(() => {
     listTokens(accessToken)
@@ -89,6 +94,24 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
   }, [accessToken]);
 
   useEffect(refresh, [refresh]);
+
+  const refreshApps = useCallback(() => {
+    listConnectedApps(accessToken)
+      .then(setApps)
+      .catch((thrown: unknown) => setError(thrown instanceof Error ? thrown.message : String(thrown)));
+  }, [accessToken]);
+
+  useEffect(refreshApps, [refreshApps]);
+
+  async function handleDisconnect(app: ConnectedApp) {
+    if (!window.confirm(`Disconnect "${app.client_name}"? It loses access immediately.`)) return;
+    try {
+      await disconnectApp(accessToken, app.id);
+      refreshApps();
+    } catch (thrown) {
+      setError(thrown instanceof Error ? thrown.message : String(thrown));
+    }
+  }
 
   useEffect(() => {
     fetchServerInfo(accessToken)
@@ -200,6 +223,46 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
         )}
       </Card>
 
+      <Card className="mb-3">
+        <CardHeader>
+          <CardTitle>Connected apps</CardTitle>
+        </CardHeader>
+        {apps === null ? (
+          <CardBody className="text-secondary">Loading…</CardBody>
+        ) : apps.length === 0 ? (
+          <CardBody className="text-secondary">
+            None yet. Apps that sign in instead of using a token, like a Claude connector, show up here.
+          </CardBody>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-vcenter card-table">
+              <thead>
+                <tr>
+                  <th>App</th>
+                  <th>Connected</th>
+                  <th>Last used</th>
+                  <th className="w-1" />
+                </tr>
+              </thead>
+              <tbody>
+                {apps.map((app) => (
+                  <tr key={app.id}>
+                    <td>{app.client_name}</td>
+                    <td className="text-secondary">{formatDate(app.created_at)}</td>
+                    <td className="text-secondary">{formatDate(app.last_used_at, "Never")}</td>
+                    <td>
+                      <Button variant="danger" outline onClick={() => void handleDisconnect(app)}>
+                        Disconnect
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Connect an AI client</CardTitle>
@@ -211,7 +274,7 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
             <CopyButton text={mcpUrl} />
           </div>
           <small className="form-hint">
-            Streamable HTTP transport, authenticated with <code>Authorization: Bearer &lt;token&gt;</code>
+            Streamable HTTP transport, authenticated with OAuth or <code>Authorization: Bearer &lt;token&gt;</code>
             {server && (
               <>
                 {" "}
@@ -244,7 +307,7 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
           <div className="col" role="tabpanel" style={{ minWidth: 0 }}>
             <CardBody>
               <h3 className="card-title mb-3">{client.label}</h3>
-              {!created && (
+              {!created && client.usesToken !== false && (
                 <p className="text-secondary">
                   Replace <code>{TOKEN_PLACEHOLDER}</code> with a token, or create one above and it's filled in here.
                 </p>

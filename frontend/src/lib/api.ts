@@ -93,3 +93,79 @@ export async function fetchServerInfo(accessToken: string): Promise<ServerInfo> 
   ]);
   return { name: init.result.serverInfo.name, toolCount: tools.result.tools.length };
 }
+
+/** What the consent page shows - who is asking, and where "Allow" sends the user back to. */
+export interface AuthorizationRequest {
+  client_name: string;
+  redirect_uri: string;
+  server_name: string;
+}
+
+/**
+ * An authorization request the server refused. `redirect_to` is set when
+ * the error should go back to the app (the OAuth way); when it's null the
+ * app itself is unknown or asked for an unregistered address, so the user
+ * stays here.
+ */
+export class AuthorizationError extends Error {
+  redirectTo: string | null;
+
+  constructor(message: string, redirectTo: string | null) {
+    super(message);
+    this.name = "AuthorizationError";
+    this.redirectTo = redirectTo;
+  }
+}
+
+function asAuthorizationError(thrown: unknown): unknown {
+  if (thrown instanceof ApiError && thrown.status === 400) {
+    const redirectTo = (thrown.body as { redirect_to?: string | null } | null)?.redirect_to ?? null;
+    return new AuthorizationError(thrown.message, redirectTo);
+  }
+  return thrown;
+}
+
+/** The OAuth authorization request, as the page's query string carried it. */
+export function authorizationParams(search: string): Record<string, string> {
+  return Object.fromEntries(new URLSearchParams(search));
+}
+
+export async function checkAuthorization(accessToken: string, search: string): Promise<AuthorizationRequest> {
+  try {
+    return await apiRequest<AuthorizationRequest>(`${MCP_PATH}/oauth/authorize`, accessToken, {
+      params: authorizationParams(search),
+    });
+  } catch (thrown) {
+    throw asAuthorizationError(thrown);
+  }
+}
+
+/** Allow or deny - returns where to send the browser next (back to the app). */
+export async function decideAuthorization(accessToken: string, search: string, approve: boolean): Promise<string> {
+  try {
+    const body = await apiRequest<{ redirect_to: string }>(`${MCP_PATH}/oauth/authorize`, accessToken, {
+      method: "POST",
+      data: { ...authorizationParams(search), approve },
+    });
+    return body.redirect_to;
+  } catch (thrown) {
+    throw asAuthorizationError(thrown);
+  }
+}
+
+/** An app connected through OAuth (e.g. a Claude connector). */
+export interface ConnectedApp {
+  id: string;
+  client_name: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+export async function listConnectedApps(accessToken: string): Promise<ConnectedApp[]> {
+  const body = await apiRequest<{ items: ConnectedApp[] }>(`${MCP_PATH}/oauth/grants`, accessToken);
+  return body.items;
+}
+
+export function disconnectApp(accessToken: string, id: string): Promise<void> {
+  return apiRequest<void>(`${MCP_PATH}/oauth/grants/${id}`, accessToken, { method: "DELETE" });
+}

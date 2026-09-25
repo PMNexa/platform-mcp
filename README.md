@@ -1,8 +1,9 @@
 # platform-mcp
 
 An [MCP](https://modelcontextprotocol.io) server over every platform-core
-`BaseViewSet` resource, plus personal access tokens (PATs) for MCP
-clients and a frontend page to manage them. A host app (GoalNexa's
+`BaseViewSet` resource, with OAuth sign-in (for Claude's connectors) and
+personal access tokens (PATs) for MCP clients, and a frontend page to
+manage both. A host app (GoalNexa's
 `apps/main`) imports both halves:
 
 - **Backend**: the `platform_mcp` Django app (`backend/`). The MCP
@@ -10,13 +11,18 @@ clients and a frontend page to manage them. A host app (GoalNexa's
   tools (plus `_link/_unlink` for many-to-many relations) for every
   registered resource, with nothing to write per resource.
 - **Frontend**: the `platform-mcp-frontend` package (`frontend/`). One
-  "MCP access" page to create and revoke tokens, with setup steps for
-  each client below, filled in with the server URL and the new token.
+  "MCP access" page to create and revoke tokens and disconnect apps,
+  with setup steps for each client below, filled in with the server URL
+  and the new token, plus the OAuth consent page.
 - **Agent skills**: any installed app can ship `mcp_skills/<name>/SKILL.md`
   playbooks. The instance serves them, plus an index that doubles as a
   one-line install prompt (see "Agent skills" below).
 
 ## Using it with an AI client
+
+Claude's connectors (desktop app, claude.ai, mobile) sign in with
+OAuth, so there's no token to create - see the first section below.
+Every other client uses a personal access token:
 
 1. Sign in and open **MCP access** in the sidebar (`/mcp`).
 2. Click **New token**, name it after the client (e.g. "Claude Code on
@@ -25,7 +31,7 @@ clients and a frontend page to manage them. A host app (GoalNexa's
    server URL and token already filled in).
 
 The server speaks MCP's **Streamable HTTP** transport at
-`https://<your-host>/api/v1/mcp` and authenticates with
+`https://<your-host>/api/v1/mcp` and authenticates with OAuth or
 `Authorization: Bearer <token>`. Below, `goalnexa` is the server name
 and `gnx_...` the token. Replace both, and the URL.
 
@@ -34,6 +40,24 @@ can in the app, and nothing else. Use one token per client so you can
 revoke them one at a time. Tokens only work at the MCP endpoint, not
 the rest of the API, and can't create or revoke other tokens.
 
+### Claude: desktop app, claude.ai (connector)
+
+1. In Claude, open **Settings → Connectors** and click **Add custom
+   connector**.
+2. Name: `goalnexa`. Remote MCP server URL:
+   `https://your-host/api/v1/mcp`. Leave Advanced settings empty.
+3. Click **Add**, then **Connect**. A window opens on your instance:
+   sign in if asked, then click **Allow**.
+4. In a chat, turn the connector on from the tools menu (**+**).
+
+A connector added on claude.ai also works in the desktop and mobile
+apps. On a Team or Enterprise plan, an owner adds it once under
+**Organization settings → Connectors**, then each member clicks
+**Connect**. The connection shows up under **Connected apps** on the MCP
+access page, where you can disconnect it. The server must be reachable
+from the internet over HTTPS: Claude connects from Anthropic's servers,
+not from your computer.
+
 ### Claude Code
 
 ```sh
@@ -41,16 +65,21 @@ claude mcp add --transport http goalnexa https://your-host/api/v1/mcp \
   --header "Authorization: Bearer gnx_..."
 ```
 
+Or leave out `--header`: then run `/mcp` in a session, pick the server
+and choose **Authenticate** to sign in through the browser (OAuth), no
+token needed.
+
 Add `--scope user` to use it in every project, or `--scope project` to
 share it with a repo through `.mcp.json` (then keep the token out of the
 file: `"Authorization": "Bearer ${GOALNEXA_MCP_TOKEN}"` is expanded from
 the environment). Check with `claude mcp list`, or `/mcp` in a session.
 
-### Claude Desktop
+### Claude Desktop with a token (config file)
 
-Claude Desktop's own connector settings only support OAuth servers, so
-it connects through the [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)
-bridge (needs Node.js). Settings → Developer → Edit Config
+The connector above is simpler. Where custom connectors aren't
+available, Claude Desktop can use a token through the
+[`mcp-remote`](https://www.npmjs.com/package/mcp-remote) bridge (needs
+Node.js). Settings → Developer → Edit Config
 (`~/Library/Application Support/Claude/claude_desktop_config.json` on
 macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
 

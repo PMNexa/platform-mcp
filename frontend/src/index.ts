@@ -8,6 +8,9 @@
  */
 export { default as McpAccessScreen } from "./screens/McpAccessScreen";
 export type { McpAccessScreenProps } from "./screens/McpAccessScreen";
+// The OAuth consent page (mounted by `createMcpRoutes` at `<basePath>/authorize`).
+export { default as McpAuthorizeScreen } from "./screens/McpAuthorizeScreen";
+export type { McpAuthorizeScreenProps } from "./screens/McpAuthorizeScreen";
 export { createMcpRoutes } from "./mcpRoutes";
 // Its sidebar entry - same `basePath` as `createMcpRoutes`.
 export { createMcpNavItems } from "./mcpNav";

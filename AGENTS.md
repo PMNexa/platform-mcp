@@ -1,7 +1,8 @@
 # AGENTS.md - platform-mcp
 
-MCP server over every platform-core `BaseViewSet`, personal access
-tokens (PATs) for MCP clients, and the frontend page that manages them.
+MCP server over every platform-core `BaseViewSet`, OAuth 2.1 sign-in and
+personal access tokens (PATs) for MCP clients, and the frontend pages
+that manage them.
 Split out of platform-core (`core_api/mcp.py`) so the kernel stays
 protocol-free and the tokens (a model, so migrations) have a home. The
 root README is the user-facing client setup guide.
@@ -15,12 +16,14 @@ pattern as platform-org (see the GoalNexa root AGENTS.md).
 | File | What |
 |---|---|
 | `server.py` | The MCP protocol (`McpServerView`) and tool generation. No auth of its own. |
-| `views.py` | `McpView` (= server + PAT auth + `IsAuthenticated`) and the token API. |
-| `authentication.py` | `PersonalAccessTokenAuthentication`, `ActorStub`. |
-| `models.py` | `PersonalAccessToken` (hash only; `user_id` is a bare string). |
+| `views.py` | `McpView` (= server + OAuth/PAT auth + `IsAuthenticated`), the token API, the consent + connected-apps API. |
+| `oauth.py` | OAuth: metadata documents, client registration, token and revocation endpoints, authorization-request checks. |
+| `wellknown_urls.py` | `/.well-known/oauth-protected-resource[/...]`, `/.well-known/oauth-authorization-server[/...]` - mounted at the host's ROOT. |
+| `authentication.py` | `OAuthAccessTokenAuthentication`, `PersonalAccessTokenAuthentication`, `ActorStub`. |
+| `models.py` | `PersonalAccessToken`, `OAuthClient`/`OAuthAuthorizationCode`/`OAuthGrant`/`OAuthAccessToken` (hashes only; `user_id` is a bare string). |
 | `skills.py` | Agent-skills discovery (`mcp_skills/` in installed apps) and rendering. |
 | `skills_index.md` | The skills index template = the one-prompt install procedure. |
-| `urls.py` | `mcp`, `mcp/tokens`, `mcp/tokens/<id>`, `mcp/skills`, `mcp/skills/<name>/<file>` (namespace `platform_mcp`) - mount under the API prefix. |
+| `urls.py` | `mcp`, `mcp/tokens[/<id>]`, `mcp/oauth/{authorize,grants[/<id>],register,token,revoke}`, `mcp/skills`, `mcp/skills/<name>/<file>` (namespace `platform_mcp`) - mount under the API prefix. |
 
 **Tools**: `<resource>_schema/_list/_get/_create/_update/_delete`, plus
 `_link/_unlink` when the resource has a many-to-many relation.
@@ -69,6 +72,40 @@ is written at most once a minute. A PAT resolves to `ActorStub(id=
 user_id)` - `.id` is all the resource views read (true of platform-org
 and goalnexa); a view needing a real `User` would break under a PAT.
 
+**OAuth** (`oauth.py`) is for clients that can't be given a static
+header - Claude's custom connectors (desktop, claude.ai, mobile), also
+Claude Code without `--header`. MCP's authorization flow: the MCP
+endpoint's 401 carries `WWW-Authenticate: Bearer resource_metadata=
+"<origin>/.well-known/oauth-protected-resource/<mcp path>"` (set in
+`McpView.finalize_response`, on every 401); that names this server as
+its own authorization server (issuer = the origin); the client registers
+itself (`register`, RFC 7591 - public clients by default, a secret only
+if it asks for `client_secret_post/basic`; redirect URIs https, loopback
+http or a custom scheme), sends the user to the consent page, and trades
+the code at `token`. PKCE S256 is required; codes are single-use, 10
+minutes, bound to client + redirect URI; `resource` must be our MCP URL
+if sent. The consent page is a FRONTEND route
+(`<basePath>/authorize`, `MCP_OAUTH_AUTHORIZE_PAGE`, default
+`MCP_TOKENS_PAGE + "/authorize"`) behind the host's own login - so no
+server-side session or cookie is involved: the page calls
+`GET|POST mcp/oauth/authorize` with the session's access token (bearer
+header, so no CSRF), and follows the returned `redirect_to`. A bad
+client or redirect URI is shown on the page, never redirected to (open
+redirect); other errors go back to the client OAuth-style.
+
+An approval is an `OAuthGrant` - a "connected app", listed and revoked
+through `mcp/oauth/grants` next to the PATs. It holds ONE refresh token
+(`mcprt_`, rotated on every use, 30-day sliding window) and has
+short-lived access tokens (`mcpat_`, 1 hour), which
+`OAuthAccessTokenAuthentication` accepts at the MCP endpoint only - the
+same reach and the same "can't manage tokens or grants" rule as a PAT
+(`_SessionOnlyView` refuses both). `revoke` (RFC 7009) with either token
+deletes the grant. `register` and `token`/`revoke` are throttled per IP
+(`MCP_OAUTH_REGISTER_RATE`, `MCP_OAUTH_TOKEN_RATE`, in the default
+cache). Gaps: no refresh-token replay detection (a reused old refresh
+token just fails), no Client ID Metadata Documents (clients must
+register), one scope (`mcp`).
+
 A tool call that raises (the API crashed instead of answering) becomes
 that tool's `isError` result (`HTTP 500`, generic message, logged), not
 a 500 for the whole JSON-RPC request.
@@ -95,11 +132,18 @@ that's all a client has.
 Settings (all optional): `MCP_SERVER_NAME`, `MCP_SERVER_VERSION`,
 `MCP_INSTRUCTIONS`, `MCP_TOKEN_PREFIX` (default `pat_`; GoalNexa uses
 `gnx_`), `MCP_PUBLIC_URL`, `MCP_TOKENS_PAGE` (frontend path of the
-tokens page, default `/mcp`).
+tokens page, default `/mcp`), `MCP_OAUTH_AUTHORIZE_PAGE` (the consent
+page, default `<MCP_TOKENS_PAGE>/authorize`), `MCP_OAUTH_ACCESS_TOKEN_TTL`
+(seconds, 3600), `MCP_OAUTH_REFRESH_TOKEN_DAYS` (30),
+`MCP_OAUTH_REGISTER_RATE` (`20/hour`), `MCP_OAUTH_TOKEN_RATE` (`60/min`).
 
 Host wiring: `pip install -e` this `backend/` (next to platform-core's),
 add `"platform_mcp"` to `INSTALLED_APPS`, `path("api/v1/",
-include("platform_mcp.urls"))`, migrate.
+include("platform_mcp.urls"))` and `path("", include(
+"platform_mcp.wellknown_urls"))`, route `/.well-known/oauth-*` to the
+backend at the gateway, migrate. OAuth needs the public origin right
+(forwarded `Host` + scheme, or `MCP_PUBLIC_URL`): it's the issuer and
+every URL in the metadata.
 
 Gap: the registry path is resolved as-is, so a module mounted under a
 gateway prefix the backend never sees would 404.
@@ -111,9 +155,12 @@ gateway prefix the backend never sees would 404.
 routes; apps/main spreads it into `app-shell.tsx`'s `NAV_ITEMS`. No
 `permission` on it: every signed-in user manages their own tokens.
 
-`createMcpRoutes(basePath)` (from `"."`) registers one route file,
-`routes/mcp.tsx`, which reads the access token from the host layout's
-outlet context and renders `McpAccessScreen`. Mount it inside the
+`createMcpRoutes(basePath)` (from `"."`) registers two route files:
+`routes/mcp.tsx` (`McpAccessScreen` - tokens, connected apps, client
+guide) and `routes/mcp-authorize.tsx` at `<basePath>/authorize`
+(`McpAuthorizeScreen` - the OAuth consent page; it leaves through
+`window.location`, since the destination is the app's own site). Both
+read the access token from the host layout's outlet context. Mount it inside the
 session-gated layout (`...createMcpRoutes("mcp")`), add the package to
 the host's `optimizeDeps.exclude` and `ssr.noExternal`.
 
