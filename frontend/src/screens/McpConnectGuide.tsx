@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Button } from "platform-core";
+import { Button, CodeBlock } from "platform-core";
 import { API_BASE_URL, MCP_PATH, createToken, fetchServerInfo, type ServerInfo } from "../lib/api";
 import { MCP_CLIENTS } from "../lib/clients";
 
@@ -19,19 +19,6 @@ function renderInline(text: string): ReactNode {
   return text.split("`").map((part, index) => (index % 2 ? <code key={index}>{part}</code> : <Fragment key={index}>{part}</Fragment>));
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 1500);
-    return () => clearTimeout(timer);
-  }, [copied]);
-  return (
-    <Button variant="secondary" outline onClick={() => void navigator.clipboard.writeText(text).then(() => setCopied(true))}>
-      {copied ? "Copied" : "Copy"}
-    </Button>
-  );
-}
 
 /**
  * How to connect ONE AI client, picked from a list: its own steps and
@@ -115,14 +102,7 @@ function McpConnectGuide({ accessToken, tokenName = "Setup" }: McpConnectGuidePr
         </div>
       )}
 
-      <div className="position-relative">
-        <pre className="mb-2" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-          {snippet}
-        </pre>
-        <div className="position-absolute top-0 end-0 m-2">
-          <CopyButton text={snippet} />
-        </div>
-      </div>
+      <CodeBlock code={snippet} className="mb-2" />
       <div className="text-secondary small">{renderInline(client.verify)}</div>
     </div>
   );

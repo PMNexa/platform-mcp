@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode, type SubmitEvent } from "react";
-import { Button, Card, CardBody, CardHeader, CardTitle, FormControl, FormLabel, Modal } from "platform-core";
+import { Button, Card, CardBody, CardHeader, CardTitle, CodeBlock, CopyButton, FormControl, FormLabel, Modal } from "platform-core";
 import {
   API_BASE_URL,
   MCP_PATH,
@@ -51,23 +51,6 @@ function renderInline(text: string): ReactNode {
   return text.split("`").map((part, index) => (index % 2 ? <code key={index}>{part}</code> : <Fragment key={index}>{part}</Fragment>));
 }
 
-function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 1500);
-    return () => clearTimeout(timer);
-  }, [copied]);
-  return (
-    <Button
-      variant="secondary"
-      outline
-      onClick={() => void navigator.clipboard.writeText(text).then(() => setCopied(true))}
-    >
-      {copied ? "Copied" : label}
-    </Button>
-  );
-}
 
 /**
  * The "MCP access" page: the caller's personal access tokens (create,
@@ -319,14 +302,7 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
                   </li>
                 ))}
               </ol>
-              <div className="position-relative">
-                <pre className="mb-2" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                  {snippet}
-                </pre>
-                <div className="position-absolute top-0 end-0 m-2">
-                  <CopyButton text={snippet} />
-                </div>
-              </div>
+              <CodeBlock code={snippet} className="mb-2" />
               <div className="text-secondary">{renderInline(client.verify)}</div>
             </CardBody>
           </div>
