@@ -164,6 +164,12 @@ read the access token from the host layout's outlet context. Mount it inside the
 session-gated layout (`...createMcpRoutes("mcp")`), add the package to
 the host's `optimizeDeps.exclude` and `ssr.noExternal`.
 
+`McpConnectGuide` (also from `"."`) is the client guide on its own, for
+another package's screen (goalnexa's onboarding wizard): pick ONE
+client, see its steps and snippet; a token-based client gets "Create a
+token" (a personal access token, shown once, filled into the snippet).
+Same `MCP_CLIENTS`, so the two stay in step.
+
 The screen asks the MCP server itself (`initialize` + `tools/list`, as
 the logged-in user) for its name and tool count, so nothing about the
 host is configured in the package. The absolute server URL comes from
