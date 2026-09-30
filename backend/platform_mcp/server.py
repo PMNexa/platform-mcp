@@ -66,6 +66,15 @@ def _resources() -> dict[str, str]:
     return resources
 
 
+#: Set in a sub-request's `request.META` (see `_call_api`); check it with `is_mcp_request`.
+MCP_REQUEST_KEY = "platform_mcp.request"
+
+
+def is_mcp_request(request) -> bool:
+    """Whether `request` (Django's or DRF's) is an MCP tool call's sub-request."""
+    return bool(getattr(request, "META", {}).get(MCP_REQUEST_KEY))
+
+
 def _call_api(request, method: str, path: str, *, query=None, body=None) -> tuple[int, object]:
     """Dispatch `method path` through the host's urlconf as if the MCP
     caller had sent it - same actor, same headers, same remote address. Returns `(status, parsed JSON body or None)`."""
@@ -79,6 +88,10 @@ def _call_api(request, method: str, path: str, *, query=None, body=None) -> tupl
         "CONTENT_LENGTH": str(len(payload)),
         "HTTP_ACCEPT": "application/json",
         "wsgi.input": io.BytesIO(payload),
+        # Tells a resource view the call came through MCP (an AI agent) -
+        # e.g. goalnexa records a check-in's source. Not an HTTP_ key, so
+        # no client can send it.
+        MCP_REQUEST_KEY: True,
     }
     try:
         match = resolve(path)
