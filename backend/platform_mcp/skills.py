@@ -32,6 +32,12 @@ from django.conf import settings
 from django.urls import reverse
 
 SKILLS_DIR_NAME = "mcp_skills"
+INSTRUCTIONS_FILE_NAME = "mcp_instructions.md"
+DEFAULT_INSTRUCTIONS = (
+    "Each resource has <resource>_schema/_list/_get/_create/_update/_delete tools "
+    "(plus _link/_unlink for many-to-many relations). Call _schema first to see a "
+    "resource's fields and relations."
+)
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _FRONT_MATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 
@@ -112,3 +118,18 @@ def context(request) -> dict[str, str]:
 
 def render(text: str, values: dict[str, str]) -> str:
     return re.sub(r"\{\{\s*(\w+)\s*\}\}", lambda m: values.get(m.group(1), m.group(0)), text)
+
+
+def instructions(request) -> str:
+    """What `initialize` tells the client about this server: the host's
+    `MCP_INSTRUCTIONS` (or the generic default), then every installed
+    app's `mcp_instructions.md`, rendered like a skill file. That file is
+    where a domain module says how to use its resources well, for a
+    client that has the connection but none of the skills."""
+    parts = [getattr(settings, "MCP_INSTRUCTIONS", DEFAULT_INSTRUCTIONS)]
+    values = context(request)
+    for app in apps.get_app_configs():
+        file = Path(app.path) / INSTRUCTIONS_FILE_NAME
+        if file.is_file():
+            parts.append(render(file.read_text().strip(), values))
+    return "\n\n".join(part for part in parts if part)

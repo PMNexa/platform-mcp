@@ -3,7 +3,12 @@ the REST API serves, as tools an AI client (Claude Code, Claude Desktop,
 Codex, Cursor, ...) can call. Nothing per resource to write: a resource
 gets tools as soon as it's registered the usual way (a `BaseViewSet`
 subclass plus a `register_model_endpoint` call in its app's urls.py). Set
-`mcp_enabled = False` on a viewset to leave it out.
+`mcp_enabled = False` on a viewset to leave it out, or list the ones to
+keep in the host's `MCP_RESOURCES`.
+
+An endpoint that isn't a `BaseViewSet` (a settings view, a computed
+report) becomes a tool by being declared in its app's `mcp_tools.py` -
+see `custom_tools`. Still a sub-request to the real API, never the ORM.
 
 Every tool call is an internal sub-request to the resource's REAL API URL
 (resolved through the host's own urlconf, dispatched to the viewset) as
@@ -30,14 +35,19 @@ import io
 import json
 import logging
 import re
-from urllib.parse import urlencode
+from importlib import import_module
+from importlib.util import find_spec
+from urllib.parse import quote, urlencode
 
 from core_api.registry import _registry, model_viewset
+from django.apps import apps
 from django.conf import settings
 from django.core.handlers.wsgi import WSGIRequest
 from django.urls import Resolver404, resolve
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from platform_mcp.skills import instructions
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +66,53 @@ _TYPE_SCHEMAS = {
 
 def _resources() -> dict[str, str]:
     """`{tool prefix: API path}` for every MCP-enabled `BaseViewSet` with a
-    registered endpoint - `/api/v1/check-ins` becomes `check_ins`."""
+    registered endpoint - `/api/v1/check-ins` becomes `check_ins`. The
+    host's `MCP_RESOURCES` (a list of those prefixes, or of the path's
+    last segment: `check-ins`) keeps only the ones it names; unset = all."""
+    allowed = getattr(settings, "MCP_RESOURCES", None)
+    if allowed is not None:
+        allowed = {re.sub(r"\W", "_", name) for name in allowed}
     resources = {}
     for model, path in _registry.items():
         viewset_class = model_viewset(model)
         if viewset_class is None or not getattr(viewset_class, "mcp_enabled", True):
             continue
-        resources[re.sub(r"\W", "_", path.rstrip("/").rsplit("/", 1)[-1])] = path.rstrip("/")
+        key = re.sub(r"\W", "_", path.rstrip("/").rsplit("/", 1)[-1])
+        if allowed is None or key in allowed:
+            resources[key] = path.rstrip("/")
     return resources
+
+
+TOOLS_MODULE_NAME = "mcp_tools"
+_TOOL_KEYS = ("name", "description", "inputSchema", "annotations")
+
+
+def custom_tools() -> dict[str, dict]:
+    """Tools declared by installed apps, by name: `<app>/mcp_tools.py` with
+    a `TOOLS` list (found like `mcp_skills/` - nothing to register, and the
+    app doesn't import this package). Each is a dict: `name`,
+    `description`, `inputSchema`, optional `annotations`, plus how to call
+    the API - `method`, `path` (may hold `{argument}` placeholders, filled
+    from the arguments) and, for a non-GET, `query` (argument names sent
+    in the query string; the rest is the JSON body). A GET sends every
+    remaining argument as query. First app wins on a name clash."""
+    tools: dict[str, dict] = {}
+    for app in apps.get_app_configs():
+        module_name = f"{app.name}.{TOOLS_MODULE_NAME}"
+        if find_spec(module_name) is None:
+            continue
+        for tool in getattr(import_module(module_name), "TOOLS", ()):
+            tools.setdefault(tool["name"], tool)
+    return tools
+
+
+def _call_custom_tool(request, tool: dict, arguments: dict) -> tuple[int, object]:
+    arguments = dict(arguments)
+    path = re.sub(r"\{(\w+)\}", lambda m: quote(str(arguments.pop(m.group(1), "")), safe=""), tool["path"])
+    method = tool.get("method", "GET").upper()
+    query_names = arguments.keys() if method == "GET" else tool.get("query", ())
+    query = [(name, _query_value(arguments.pop(name))) for name in list(query_names) if name in arguments]
+    return _call_api(request, method, path, query=query, body=None if method == "GET" else arguments)
 
 
 #: Set in a sub-request's `request.META` (see `_call_api`); check it with `is_mcp_request`.
@@ -313,7 +362,8 @@ class _RpcError(Exception):
 
 class McpServerView(APIView):
     """The MCP protocol - see this module's docstring. Settings read (all
-    optional): `MCP_SERVER_NAME`, `MCP_SERVER_VERSION`, `MCP_INSTRUCTIONS`.
+    optional): `MCP_SERVER_NAME`, `MCP_SERVER_VERSION`, `MCP_INSTRUCTIONS`,
+    `MCP_RESOURCES`.
     """
 
     def post(self, request):
@@ -350,13 +400,7 @@ class McpServerView(APIView):
                     "name": getattr(settings, "MCP_SERVER_NAME", "platform-core"),
                     "version": getattr(settings, "MCP_SERVER_VERSION", "0.1.0"),
                 },
-                "instructions": getattr(
-                    settings,
-                    "MCP_INSTRUCTIONS",
-                    "Each resource has <resource>_schema/_list/_get/_create/_update/_delete tools "
-                    "(plus _link/_unlink for many-to-many relations). Call _schema first to see a "
-                    "resource's fields and relations.",
-                ),
+                "instructions": instructions(request),
             }
         if method == "ping":
             return {}
@@ -366,11 +410,16 @@ class McpServerView(APIView):
                 status, schema = _call_api(request, "GET", f"{path}/schema")
                 if status == 200:
                     tools += _tools_for(key, schema)
+            tools += [{k: tool[k] for k in _TOOL_KEYS if k in tool} for tool in custom_tools().values()]
             return {"tools": tools}
         if method == "tools/call":
             name = params.get("name", "")
+            custom = custom_tools().get(name)
             try:
-                status, data = _call_tool(request, name, params.get("arguments") or {})
+                if custom is not None:
+                    status, data = _call_custom_tool(request, custom, params.get("arguments") or {})
+                else:
+                    status, data = _call_tool(request, name, params.get("arguments") or {})
             except KeyError:
                 raise _RpcError(-32602, f"Unknown tool: {name}") from None
             except Exception:

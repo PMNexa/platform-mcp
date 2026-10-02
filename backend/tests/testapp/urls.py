@@ -3,7 +3,7 @@ from django.urls import include, path
 from rest_framework.routers import SimpleRouter
 
 from tests.testapp.models import Book, Club, Shelf, Tag
-from tests.testapp.views import BookViewSet, ClubViewSet, ShelfViewSet, TagViewSet
+from tests.testapp.views import BookViewSet, ClubViewSet, ShelfSummaryView, ShelfViewSet, TagViewSet
 
 router = SimpleRouter(trailing_slash=False)
 router.register("shelves", ShelfViewSet, basename="shelves")
@@ -14,6 +14,7 @@ for model, endpoint in ((Shelf, "/shelves"), (Tag, "/tags"), (Book, "/books"), (
     register_model_endpoint(model, endpoint)
 
 urlpatterns = [
+    path("shelves/<str:pk>/summary", ShelfSummaryView.as_view()),
     *router.urls,
     path("", include("platform_mcp.urls")),
     path("", include("platform_mcp.wellknown_urls")),

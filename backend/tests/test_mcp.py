@@ -1,7 +1,7 @@
 import json
 from unittest import mock
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from platform_mcp.server import _tools_for
@@ -138,3 +138,37 @@ class McpTests(TestCase):
         self.assertTrue(error)
         self.assertIn("HTTP 500", text)
         self.assertNotIn("boom", text)
+
+    def test_instructions_include_each_apps_own(self):
+        text = self.rpc("initialize")["result"]["instructions"]
+        self.assertIn("_schema first", text)
+        self.assertIn("Shelves hold books. The app is at http://testserver.", text)
+        with override_settings(MCP_INSTRUCTIONS="Hello."):
+            self.assertTrue(self.rpc("initialize")["result"]["instructions"].startswith("Hello.\n\nShelves"))
+
+    @override_settings(MCP_RESOURCES=["books", "tags"])
+    def test_resources_setting_limits_the_tools(self):
+        tools = self.tools()
+        self.assertIn("books_list", tools)
+        self.assertIn("tags_list", tools)
+        self.assertNotIn("shelves_list", tools)
+        self.assertNotIn("clubs_list", tools)
+        self.assertEqual(self.rpc("tools/call", {"name": "shelves_list", "arguments": {}})["error"]["code"], -32602)
+        # A relation to a resource that's left out no longer names its tool.
+        self.assertNotIn("shelves_list", tools["books_create"]["inputSchema"]["properties"]["shelf"]["description"])
+
+    def test_custom_tools(self):
+        tools = self.tools()
+        self.assertEqual(tools["shelves_summary"]["annotations"], {"readOnlyHint": True})
+        self.assertNotIn("path", tools["shelves_summary"])
+        self.assertNotIn("method", tools["shelves_summary_set"])
+        # GET: the path placeholder is filled, the rest is the query; runs as the caller.
+        self.assertEqual(self.call("shelves_summary", id=7, days=30), (False, {"shelf": "7", "as": "me", "days": "30"}))
+        # Non-GET: named arguments in the query, the rest in the body.
+        self.assertEqual(
+            self.call("shelves_summary_set", id="a", dry_run=True, note="hi"),
+            (False, {"shelf": "a", "dry_run": "1", "body": {"note": "hi"}}),
+        )
+        # A placeholder can't climb out of its path segment.
+        error, data = self.call("shelves_summary", id="../../mcp/tokens")
+        self.assertEqual((error, data["shelf"]), (False, "..%2F..%2Fmcp%2Ftokens"))

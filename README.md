@@ -217,6 +217,18 @@ Code, `~/.codex/skills/` for Codex, or the project's `.claude/skills/` if
 you say "for this project only". It asks before overwriting a skill you
 already have. Repeat the prompt to update.
 
+The skills are optional. The server sends its own instructions when a
+client connects (the host's, plus each module's `mcp_instructions.md`),
+so an assistant with only the connection - a phone app, a connector
+added from a directory - already knows how to use the tools well.
+
+### What the server exposes
+
+Every resource by default. A host can narrow that with `MCP_RESOURCES`
+(a list of resource names) - GoalNexa exposes goal tracking and leaves
+user and role administration to the web app; set `MCP_RESOURCES=*` there
+to get everything.
+
 ### Tips for prompting
 
 Each resource has a `<resource>_schema` tool; the server tells clients

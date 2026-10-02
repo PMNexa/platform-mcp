@@ -1,3 +1,5 @@
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from core_api.serializers import BaseSerializer
 from core_api.viewsets import BaseViewSet
 from rest_framework.permissions import IsAuthenticated
@@ -54,3 +56,13 @@ class BookViewSet(OwnedViewSet):
 class ClubViewSet(OwnedViewSet):
     queryset = Club.objects.all()
     serializer_class = ClubSerializer
+
+
+class ShelfSummaryView(APIView):
+    """Not a `BaseViewSet` - reached over MCP through `mcp_tools.py`."""
+
+    def get(self, request, pk):
+        return Response({"shelf": pk, "as": str(request.user.id), "days": request.query_params.get("days")})
+
+    def put(self, request, pk):
+        return Response({"shelf": pk, "dry_run": request.query_params.get("dry_run"), "body": request.data})

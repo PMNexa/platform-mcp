@@ -34,7 +34,30 @@ access policy - e.g. RBAC). `<resource>` is the endpoint's last path segment wit
 `_` (`/api/v1/check-ins` → `check_ins_list`). A resource shows up when it
 has both a `BaseViewSet` (auto-registered) and a
 `register_model_endpoint` call; `mcp_enabled = False` on the viewset
-hides it (read with `getattr`, so platform-core doesn't declare it).
+hides it (read with `getattr`, so platform-core doesn't declare it), and
+the host's `MCP_RESOURCES` (a list of tool prefixes or path segments)
+keeps only the ones it names - a host exposes what an assistant should
+do, not its whole admin (GoalNexa: goal tracking, no users/roles).
+
+**Custom tools** (`server.py`'s `custom_tools`): an endpoint that isn't a
+`BaseViewSet` (a settings view, a computed report) becomes a tool by
+being listed in its app's `mcp_tools.py` - a `TOOLS` list of dicts with
+`name`, `description`, `inputSchema`, optional `annotations`, and
+`method` + `path` (`{argument}` placeholders, URL-quoted; a GET sends the
+other arguments as query, anything else as the JSON body, except the
+names in `query`). Found by module name in every installed app, like
+`mcp_skills/` - the app never imports platform-mcp. Still a sub-request
+as the caller, so the endpoint's own auth and scoping apply. Always
+listed (there's no `schema` to ask whether the caller may use it), and
+not filtered by `MCP_RESOURCES`.
+
+**Instructions** (`skills.py`'s `instructions`): `initialize` answers
+with the host's `MCP_INSTRUCTIONS` (or the generic default) followed by
+every installed app's `mcp_instructions.md`, rendered with the same
+`{{app_url}}`... values as a skill file. That file is where a domain
+module says how to use its resources well - what a client has when it
+connected (a directory, a phone) but installed no skills. Keep it and the
+module's skills saying the same thing.
 
 **Every tool call is an internal sub-request to the real API URL**
 (`_call_api`: a `WSGIRequest` built from the MCP request's own `META`,
@@ -130,7 +153,7 @@ Skills must only use the MCP tools (no REST/ORM assumptions), since
 that's all a client has.
 
 Settings (all optional): `MCP_SERVER_NAME`, `MCP_SERVER_VERSION`,
-`MCP_INSTRUCTIONS`, `MCP_TOKEN_PREFIX` (default `pat_`; GoalNexa uses
+`MCP_INSTRUCTIONS`, `MCP_RESOURCES`, `MCP_TOKEN_PREFIX` (default `pat_`; GoalNexa uses
 `gnx_`), `MCP_PUBLIC_URL`, `MCP_TOKENS_PAGE` (frontend path of the
 tokens page, default `/mcp`), `MCP_OAUTH_AUTHORIZE_PAGE` (the consent
 page, default `<MCP_TOKENS_PAGE>/authorize`), `MCP_OAUTH_ACCESS_TOKEN_TTL`
@@ -182,5 +205,5 @@ step with README.md.
 `cd backend && python manage.py test tests --settings=config.test_settings`
 (see README.md for the venv). `tests/testapp` has the same models as
 platform-core's, scoped to `request.user.id`, an `X-As: <id>`
-header login standing in for the host's, and a `demo-skill` under
-`tests/testapp/mcp_skills/`.
+header login standing in for the host's, a `demo-skill` under
+`tests/testapp/mcp_skills/`, and an `mcp_tools.py` + `mcp_instructions.md`.
