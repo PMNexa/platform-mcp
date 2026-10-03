@@ -39,6 +39,13 @@ the host's `MCP_RESOURCES` (a list of tool prefixes or path segments)
 keeps only the ones it names - a host exposes what an assistant should
 do, not its whole admin (GoalNexa: goal tracking, no users/roles).
 
+**Annotations**: every tool carries a `title` (top-level and in
+`annotations`) and both `readOnlyHint` and `destructiveHint` - list/get/
+schema read; create and link add (not destructive); update, delete and
+unlink are destructive. Claude's connectors directory requires a title
+and the hints on every tool, and clients use them to decide what runs
+without asking (`test_every_tool_has_a_title_and_both_hints`).
+
 **Custom tools** (`server.py`'s `custom_tools`): an endpoint that isn't a
 `BaseViewSet` (a settings view, a computed report) becomes a tool by
 being listed in its app's `mcp_tools.py` - a `TOOLS` list of dicts with

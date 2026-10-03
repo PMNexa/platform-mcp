@@ -159,7 +159,7 @@ class McpTests(TestCase):
 
     def test_custom_tools(self):
         tools = self.tools()
-        self.assertEqual(tools["shelves_summary"]["annotations"], {"readOnlyHint": True})
+        self.assertTrue(tools["shelves_summary"]["annotations"]["readOnlyHint"])
         self.assertNotIn("path", tools["shelves_summary"])
         self.assertNotIn("method", tools["shelves_summary_set"])
         # GET: the path placeholder is filled, the rest is the query; runs as the caller.
@@ -172,3 +172,28 @@ class McpTests(TestCase):
         # A placeholder can't climb out of its path segment.
         error, data = self.call("shelves_summary", id="../../mcp/tokens")
         self.assertEqual((error, data["shelf"]), (False, "..%2F..%2Fmcp%2Ftokens"))
+
+    def test_every_tool_has_a_title_and_both_hints(self):
+        """What a directory review checks - and what clients use to decide
+        which calls run without asking."""
+        tools = self.tools()
+        for name, tool in tools.items():
+            with self.subTest(name):
+                annotations = tool["annotations"]
+                self.assertTrue(tool["title"])
+                self.assertEqual(annotations["title"], tool["title"])
+                self.assertIsInstance(annotations["readOnlyHint"], bool)
+                self.assertIsInstance(annotations["destructiveHint"], bool)
+                self.assertLessEqual(len(name), 64)
+        self.assertEqual(tools["books_list"]["title"], "List books")
+        self.assertTrue(tools["books_get"]["annotations"]["readOnlyHint"])
+        self.assertEqual(
+            {k: tools["books_create"]["annotations"][k] for k in ("readOnlyHint", "destructiveHint")},
+            {"readOnlyHint": False, "destructiveHint": False},
+        )
+        for name in ("books_update", "books_delete", "books_unlink"):
+            self.assertTrue(tools[name]["annotations"]["destructiveHint"], name)
+        # A custom tool's declared hints win; a missing title is derived.
+        self.assertTrue(tools["shelves_summary"]["annotations"]["readOnlyHint"])
+        self.assertEqual(tools["shelves_summary_set"]["title"], "Shelves summary set")
+        self.assertFalse(tools["shelves_summary_set"]["annotations"]["readOnlyHint"])

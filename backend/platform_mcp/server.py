@@ -84,14 +84,15 @@ def _resources() -> dict[str, str]:
 
 
 TOOLS_MODULE_NAME = "mcp_tools"
-_TOOL_KEYS = ("name", "description", "inputSchema", "annotations")
+_TOOL_KEYS = ("name", "title", "description", "inputSchema", "annotations")
 
 
 def custom_tools() -> dict[str, dict]:
     """Tools declared by installed apps, by name: `<app>/mcp_tools.py` with
     a `TOOLS` list (found like `mcp_skills/` - nothing to register, and the
     app doesn't import this package). Each is a dict: `name`,
-    `description`, `inputSchema`, optional `annotations`, plus how to call
+    `description`, `inputSchema`, optional `title` and `annotations`
+    (derived from the method when missing - `_with_defaults`), plus how to call
     the API - `method`, `path` (may hold `{argument}` placeholders, filled
     from the arguments) and, for a non-GET, `query` (argument names sent
     in the query string; the rest is the JSON body). A GET sends every
@@ -102,8 +103,18 @@ def custom_tools() -> dict[str, dict]:
         if find_spec(module_name) is None:
             continue
         for tool in getattr(import_module(module_name), "TOOLS", ()):
-            tools.setdefault(tool["name"], tool)
+            tools.setdefault(tool["name"], _with_defaults(tool))
     return tools
+
+
+def _with_defaults(tool: dict) -> dict:
+    """A custom tool always carries a title and both hints: what it
+    declares, else derived - a GET reads, anything else writes, a DELETE
+    destroys."""
+    method = tool.get("method", "GET").upper()
+    title = tool.get("title") or tool.get("annotations", {}).get("title") or tool["name"].replace("_", " ").capitalize()
+    hints = _READ if method == "GET" else _REMOVE if method == "DELETE" else _ADD
+    return {**tool, "title": title, "annotations": {"title": title, **hints, **tool.get("annotations", {})}}
 
 
 def _call_custom_tool(request, tool: dict, arguments: dict) -> tuple[int, object]:
@@ -190,11 +201,26 @@ def _object_schema(properties: dict, required=()) -> dict:
     return schema
 
 
+#: What each operation does to data, as MCP tool annotations - clients
+#: (and directory reviews) read them to decide what runs without asking.
+#: Every tool states both hints, so none is left to a client's default.
+_READ = {"readOnlyHint": True, "destructiveHint": False}
+_ADD = {"readOnlyHint": False, "destructiveHint": False}
+_CHANGE = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True}
+_REMOVE = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True}
+
+
+def _annotated(tool: dict, title: str, hints: dict) -> dict:
+    """`title` both top-level (MCP 2025-06-18) and in `annotations` (older clients)."""
+    return {**tool, "title": title, "annotations": {"title": title, **hints}}
+
+
 def _tools_for(key: str, schema: dict) -> list[dict]:
     """The tools one resource gets, derived from its `schema` action's
     response (see `BaseViewSet.schema`)."""
     fields = schema["fields"]
     one, many = schema["label"], schema["label_plural"]
+    One, Many = one[:1].upper() + one[1:], many[:1].upper() + many[1:]
     # A read-only to-one relation stays an input: this platform's views set
     # a child's parent from the request body themselves (a check-in's
     # `metric`, scoped to the caller), the same key the UI's forms send.
@@ -226,40 +252,36 @@ def _tools_for(key: str, schema: dict) -> list[dict]:
     get_props = {"id": _ID_SCHEMA, **({"include": include} if includable else {})}
 
     tools = [
-        {
+        _annotated({
             "name": f"{key}_schema",
             "description": f"Describe {many}: every field with its type, whether it's required/read-only, choices and relations.",
             "inputSchema": _object_schema({}),
-            "annotations": {"readOnlyHint": True},
-        },
-        {
+        }, f"Describe {many}", _READ),
+        _annotated({
             "name": f"{key}_list",
             "description": f"List {many} (paginated: items, total, page, page_size). Fields: {names}.",
             "inputSchema": _object_schema(list_props),
-            "annotations": {"readOnlyHint": True},
-        },
-        {
+        }, f"List {many}", _READ),
+        _annotated({
             "name": f"{key}_get",
             "description": f"Get one {one} by id.",
             "inputSchema": _object_schema(get_props, ["id"]),
-            "annotations": {"readOnlyHint": True},
-        },
-        {
+        }, f"Get {one}", _READ),
+        _annotated({
             "name": f"{key}_create",
             "description": f"Create a {one}. Returns the new row.",
             "inputSchema": _object_schema(write_props, [f["name"] for f in writable if f["required"]]),
-        },
-        {
+        }, f"Create {one}", _ADD),
+        _annotated({
             "name": f"{key}_update",
             "description": f"Update a {one}: only the fields given change. Returns the updated row.",
             "inputSchema": _object_schema({"id": _ID_SCHEMA, **write_props}, ["id"]),
-        },
-        {
+        }, f"Update {one}", _CHANGE),
+        _annotated({
             "name": f"{key}_delete",
             "description": f"Delete a {one}.",
             "inputSchema": _object_schema({"id": _ID_SCHEMA}, ["id"]),
-            "annotations": {"destructiveHint": True},
-        },
+        }, f"Delete {one}", _REMOVE),
     ]
     # Only tools the caller can use: the schema's `can` (platform-core -
     # the viewset serves it and the host's access policy allows it).
@@ -284,16 +306,16 @@ def _tools_for(key: str, schema: dict) -> list[dict]:
                 + "; ".join(f"{name}: {json.dumps(s['properties'])}" for name, s in through.items()),
             }
         tools += [
-            {
+            _annotated({
                 "name": f"{key}_link",
                 "description": f"Link a {one} to existing rows of a many-to-many relation. Already-linked ids are left as they are.",
                 "inputSchema": _object_schema(link_props, ["id", "relation", "ids"]),
-            },
-            {
+            }, f"Link to {one}", {**_ADD, "idempotentHint": True}),
+            _annotated({
                 "name": f"{key}_unlink",
                 "description": f"Unlink rows of a many-to-many relation from a {one} (the rows themselves stay).",
                 "inputSchema": _object_schema({"id": _ID_SCHEMA, "relation": relation, "ids": ids}, ["id", "relation", "ids"]),
-            },
+            }, f"Unlink from {one}", _REMOVE),
         ]
     return tools
 
