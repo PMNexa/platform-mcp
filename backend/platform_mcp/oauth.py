@@ -32,7 +32,7 @@ from datetime import timedelta
 from urllib.parse import unquote, urlencode, urlsplit
 
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.parsers import FormParser, JSONParser
@@ -132,6 +132,16 @@ def _metadata(document: dict) -> JsonResponse:
     response = JsonResponse(document)
     response["Access-Control-Allow-Origin"] = "*"
     return response
+
+
+def openai_apps_challenge_view(request):
+    """OpenAI's domain verification for a ChatGPT app listing: the token
+    its dashboard shows, as plain text (`MCP_OPENAI_APPS_CHALLENGE`).
+    Unset = 404, so nothing claims a domain by default."""
+    token = (getattr(settings, "MCP_OPENAI_APPS_CHALLENGE", "") or "").strip()
+    if not token:
+        raise Http404
+    return HttpResponse(token, content_type="text/plain")
 
 
 def protected_resource_metadata_view(request, rest=""):

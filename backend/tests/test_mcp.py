@@ -173,7 +173,7 @@ class McpTests(TestCase):
         error, data = self.call("shelves_summary", id="../../mcp/tokens")
         self.assertEqual((error, data["shelf"]), (False, "..%2F..%2Fmcp%2Ftokens"))
 
-    def test_every_tool_has_a_title_and_both_hints(self):
+    def test_every_tool_has_a_title_and_all_three_hints(self):
         """What a directory review checks - and what clients use to decide
         which calls run without asking."""
         tools = self.tools()
@@ -184,6 +184,7 @@ class McpTests(TestCase):
                 self.assertEqual(annotations["title"], tool["title"])
                 self.assertIsInstance(annotations["readOnlyHint"], bool)
                 self.assertIsInstance(annotations["destructiveHint"], bool)
+                self.assertIsInstance(annotations["openWorldHint"], bool)
                 self.assertLessEqual(len(name), 64)
         self.assertEqual(tools["books_list"]["title"], "List books")
         self.assertTrue(tools["books_get"]["annotations"]["readOnlyHint"])
@@ -197,3 +198,5 @@ class McpTests(TestCase):
         self.assertTrue(tools["shelves_summary"]["annotations"]["readOnlyHint"])
         self.assertEqual(tools["shelves_summary_set"]["title"], "Shelves summary set")
         self.assertFalse(tools["shelves_summary_set"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["books_list"]["annotations"]["openWorldHint"])
+        self.assertFalse(tools["shelves_summary_set"]["annotations"]["openWorldHint"])

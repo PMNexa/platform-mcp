@@ -18,7 +18,7 @@ pattern as platform-org (see the GoalNexa root AGENTS.md).
 | `server.py` | The MCP protocol (`McpServerView`) and tool generation. No auth of its own. |
 | `views.py` | `McpView` (= server + OAuth/PAT auth + `IsAuthenticated`), the token API, the consent + connected-apps API. |
 | `oauth.py` | OAuth: metadata documents, client registration, token and revocation endpoints, authorization-request checks. |
-| `wellknown_urls.py` | `/.well-known/oauth-protected-resource[/...]`, `/.well-known/oauth-authorization-server[/...]` - mounted at the host's ROOT. |
+| `wellknown_urls.py` | `/.well-known/oauth-protected-resource[/...]`, `/.well-known/oauth-authorization-server[/...]`, `/.well-known/openai-apps-challenge` (ChatGPT domain verification: `MCP_OPENAI_APPS_CHALLENGE` as plain text, 404 when unset) - mounted at the host's ROOT. |
 | `authentication.py` | `OAuthAccessTokenAuthentication`, `PersonalAccessTokenAuthentication`, `ActorStub`. |
 | `models.py` | `PersonalAccessToken`, `OAuthClient`/`OAuthAuthorizationCode`/`OAuthGrant`/`OAuthAccessToken` (hashes only; `user_id` is a bare string). |
 | `skills.py` | Agent-skills discovery (`mcp_skills/` in installed apps) and rendering. |
@@ -40,11 +40,13 @@ keeps only the ones it names - a host exposes what an assistant should
 do, not its whole admin (GoalNexa: goal tracking, no users/roles).
 
 **Annotations**: every tool carries a `title` (top-level and in
-`annotations`) and both `readOnlyHint` and `destructiveHint` - list/get/
-schema read; create and link add (not destructive); update, delete and
-unlink are destructive. Claude's connectors directory requires a title
-and the hints on every tool, and clients use them to decide what runs
-without asking (`test_every_tool_has_a_title_and_both_hints`).
+`annotations`) and `readOnlyHint`, `destructiveHint` and `openWorldHint`
+- list/get/schema read; create and link add (not destructive); update,
+delete and unlink are destructive; none is open-world (a custom tool that
+reaches an outside service declares `openWorldHint: True`). Claude's
+connectors directory requires a title and the first two on every tool,
+ChatGPT's review all three, and clients use them to decide what runs
+without asking (`test_every_tool_has_a_title_and_all_three_hints`).
 
 **Custom tools** (`server.py`'s `custom_tools`): an endpoint that isn't a
 `BaseViewSet` (a settings view, a computed report) becomes a tool by

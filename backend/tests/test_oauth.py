@@ -104,6 +104,16 @@ class DiscoveryTests(OAuthFlow):
         self.assertEqual(body["registration_endpoint"], "http://testserver/mcp/oauth/register")
         self.assertEqual(body["code_challenge_methods_supported"], ["S256"])
 
+    def test_openai_apps_challenge(self):
+        """ChatGPT's domain verification: the configured token as plain
+        text, and nothing at all until one is set."""
+        self.assertEqual(self.anon.get("/.well-known/openai-apps-challenge").status_code, 404)
+        with override_settings(MCP_OPENAI_APPS_CHALLENGE="abc123"):
+            response = self.anon.get("/.well-known/openai-apps-challenge")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/plain")
+        self.assertEqual(response.content, b"abc123")
+
     @override_settings(MCP_PUBLIC_URL="https://goals.example.com")
     def test_public_url_wins(self):
         body = self.anon.get("/.well-known/oauth-authorization-server").json()

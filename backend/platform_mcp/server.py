@@ -108,9 +108,9 @@ def custom_tools() -> dict[str, dict]:
 
 
 def _with_defaults(tool: dict) -> dict:
-    """A custom tool always carries a title and both hints: what it
+    """A custom tool always carries a title and all three hints: what it
     declares, else derived - a GET reads, anything else writes, a DELETE
-    destroys."""
+    destroys, and nothing is open-world unless it says so."""
     method = tool.get("method", "GET").upper()
     title = tool.get("title") or tool.get("annotations", {}).get("title") or tool["name"].replace("_", " ").capitalize()
     hints = _READ if method == "GET" else _REMOVE if method == "DELETE" else _ADD
@@ -203,11 +203,14 @@ def _object_schema(properties: dict, required=()) -> dict:
 
 #: What each operation does to data, as MCP tool annotations - clients
 #: (and directory reviews) read them to decide what runs without asking.
-#: Every tool states both hints, so none is left to a client's default.
-_READ = {"readOnlyHint": True, "destructiveHint": False}
-_ADD = {"readOnlyHint": False, "destructiveHint": False}
-_CHANGE = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True}
-_REMOVE = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True}
+#: Every tool states all three hints, so none is left to a client's
+#: default (ChatGPT's review requires them). A resource tool only touches
+#: this server's own data, so it's never open-world; a custom tool that
+#: reaches outside services declares `openWorldHint: True` itself.
+_READ = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}
+_ADD = {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False}
+_CHANGE = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": False}
+_REMOVE = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": False}
 
 
 def _annotated(tool: dict, title: str, hints: dict) -> dict:
