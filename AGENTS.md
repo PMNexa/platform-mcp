@@ -43,7 +43,7 @@ do, not its whole admin (GoalNexa: goal tracking, no users/roles).
 `annotations`) and `readOnlyHint`, `destructiveHint` and `openWorldHint`
 - list/get/schema read; create and link add (not destructive); update,
 delete and unlink are destructive; none is open-world (a custom tool that
-reaches an outside service declares `openWorldHint: True`). Claude's
+reaches an outside service declares `openWorldHint: True`; a host corrects one resource tool's hints with `MCP_TOOL_ANNOTATIONS = {name: {hint: value}}`). Claude's
 connectors directory requires a title and the first two on every tool,
 ChatGPT's review all three, and clients use them to decide what runs
 without asking (`test_every_tool_has_a_title_and_all_three_hints`).

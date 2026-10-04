@@ -173,6 +173,13 @@ class McpTests(TestCase):
         error, data = self.call("shelves_summary", id="../../mcp/tokens")
         self.assertEqual((error, data["shelf"]), (False, "..%2F..%2Fmcp%2Ftokens"))
 
+    def test_host_overrides_one_tools_hints(self):
+        with override_settings(MCP_TOOL_ANNOTATIONS={"books_create": {"openWorldHint": True}}):
+            tools = self.tools()
+        self.assertTrue(tools["books_create"]["annotations"]["openWorldHint"])
+        self.assertFalse(tools["books_create"]["annotations"]["readOnlyHint"])
+        self.assertFalse(tools["books_list"]["annotations"]["openWorldHint"])
+
     def test_every_tool_has_a_title_and_all_three_hints(self):
         """What a directory review checks - and what clients use to decide
         which calls run without asking."""

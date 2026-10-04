@@ -218,6 +218,17 @@ def _annotated(tool: dict, title: str, hints: dict) -> dict:
     return {**tool, "title": title, "annotations": {"title": title, **hints}}
 
 
+def _with_overrides(tool: dict) -> dict:
+    """The host's `MCP_TOOL_ANNOTATIONS` (`{tool name: {hint: value}}`)
+    corrects a derived hint for one tool - e.g. `openWorldHint: True` on a
+    resource tool that reaches people outside the caller's own data (an
+    invitation, sharing), which a directory review asks to be marked."""
+    extra = (getattr(settings, "MCP_TOOL_ANNOTATIONS", None) or {}).get(tool["name"])
+    if not extra:
+        return tool
+    return {**tool, "annotations": {**tool.get("annotations", {}), **extra}}
+
+
 def _tools_for(key: str, schema: dict) -> list[dict]:
     """The tools one resource gets, derived from its `schema` action's
     response (see `BaseViewSet.schema`)."""
@@ -436,7 +447,7 @@ class McpServerView(APIView):
                 if status == 200:
                     tools += _tools_for(key, schema)
             tools += [{k: tool[k] for k in _TOOL_KEYS if k in tool} for tool in custom_tools().values()]
-            return {"tools": tools}
+            return {"tools": [_with_overrides(tool) for tool in tools]}
         if method == "tools/call":
             name = params.get("name", "")
             custom = custom_tools().get(name)
