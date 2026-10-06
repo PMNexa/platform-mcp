@@ -287,7 +287,7 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
               </div>
             </CardBody>
           </div>
-          <div className="col" role="tabpanel" style={{ minWidth: 0 }}>
+          <div className="col-12 col-md" role="tabpanel" style={{ minWidth: 0 }}>
             <CardBody>
               <h3 className="card-title mb-3">{client.label}</h3>
               {!created && client.usesToken !== false && (
