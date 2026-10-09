@@ -35,11 +35,13 @@ import io
 import json
 import logging
 import re
+import time
 from importlib import import_module
 from importlib.util import find_spec
 from urllib.parse import quote, urlencode
 
 from core_api.registry import _registry, model_viewset
+from core_api.system import AGENT, count, seen
 from django.apps import apps
 from django.conf import settings
 from django.core.handlers.wsgi import WSGIRequest
@@ -451,12 +453,17 @@ class McpServerView(APIView):
         if method == "tools/call":
             name = params.get("name", "")
             custom = custom_tools().get(name)
+            # The caller is active through an AI assistant (System > Insights).
+            seen(getattr(request.user, "id", None), AGENT)
+            started = time.perf_counter()
+            status, label = 500, name[:100]
             try:
                 if custom is not None:
                     status, data = _call_custom_tool(request, custom, params.get("arguments") or {})
                 else:
                     status, data = _call_tool(request, name, params.get("arguments") or {})
             except KeyError:
+                status, label = 404, "(unknown tool)"  # not a client-chosen name in the counts
                 raise _RpcError(-32602, f"Unknown tool: {name}") from None
             except Exception:
                 # A bug behind one tool call (the API raised instead of
@@ -464,6 +471,8 @@ class McpServerView(APIView):
                 # request's - the client sees a tool error it can report.
                 logger.exception("MCP tool %s failed", name)
                 status, data = 500, {"code": "server_error", "message": "The server failed to handle this call."}
+            finally:
+                count("mcp.tool", label, ok=status < 400, ms=(time.perf_counter() - started) * 1000)
             return _tool_result(status, data)
         raise _RpcError(-32601, f"Method not found: {method}")
 
