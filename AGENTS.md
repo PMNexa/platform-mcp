@@ -196,18 +196,46 @@ read the access token from the host layout's outlet context. Mount it inside the
 session-gated layout (`...createMcpRoutes("mcp")`), add the package to
 the host's `optimizeDeps.exclude` and `ssr.noExternal`.
 
-`McpConnectGuide` (also from `"."`) is the client guide on its own, for
-another package's screen (goalnexa's onboarding wizard): pick ONE
-client, see its steps and snippet; a token-based client gets "Create a
-token" (a personal access token, shown once, filled into the snippet).
-Same `MCP_CLIENTS`, so the two stay in step.
+`McpConnectGuide` (also from `"."`) is the connect wizard - the "MCP
+access" page's "Connect an AI client" card, and goalnexa's onboarding
+wizard: pick a client (cards grouped chat apps / code editors / command
+line / other), follow its steps (requirements first; the URL or snippet
+attached to the step that needs it; a token-based client gets "Create a
+token" - a personal access token, shown once, filled into the snippet),
+then a live check: `lib/useConnectionWatch.ts` polls the caller's
+connected apps and tokens every 4s against a baseline taken when the
+client was picked, and a NEW OAuth grant or a `last_used_at` that moved
+turns "Waiting for <client>" into "Connected" plus a first prompt
+(`firstPrompts` prop) and `chat.png`, a neutral chat around a real
+exchange (`GUIDE_CHAT_IMAGE`, also atop the README's client section). No clock comparison (browser and server clocks
+differ); gives up after 15 minutes with the client's troubleshooting
+and "Keep waiting". A token's `last_used_at` moves at most once a
+minute, so a token used just before picking may show up a minute late.
 
 The screen asks the MCP server itself (`initialize` + `tools/list`, as
 the logged-in user) for its name and tool count, so nothing about the
 host is configured in the package. The absolute server URL comes from
 `window.location` (`useSyncExternalStore`, relative on the server
-render). Per-client setup steps live in `lib/clients.ts` - keep them in
-step with README.md.
+render). **Per-client setup lives ONLY in `lib/clients.ts`** - one
+`McpClient` record each (group, sign-in, platforms, requirements,
+steps with `show: "url" | "snippet"` and an optional `image`, notes,
+verify, troubleshooting, `checkedOn`). The README's client section is
+GENERATED from it (`npm run readme` in `frontend/`, between the
+`<!-- clients:start/end -->` markers; `npm run readme:check` fails CI
+when stale) - never edit that section by hand. Set `checkedOn` only
+after running a client's steps end to end; unset shows "haven't been
+tested end to end yet".
+
+**Step screenshots** (`McpGuideStep.image`, e.g. `gemini-web/2.png`) are
+files under the BACKEND's `platform_mcp/static/platform_mcp/connect/`
+(package data in pyproject), served by the host's Django static files at
+`/static/platform_mcp/connect/` (`guideImageUrl`) - not Vite assets,
+because `clients.ts` is also read by Node (the README script) and by the
+route-config loader through `"."`. The README script fails on a missing
+file. Our own screens are captured by `npm run screens`
+(`scripts/capture-screens.mjs`, Playwright, the demo account); other
+apps' by hand, annotated with `scripts/annotate_shot.py` - the procedure
+and shot list: `docs/connect-screenshots.md`.
 
 ## Tests
 

@@ -26,7 +26,7 @@ build-backend = "setuptools.build_meta"
 include = ["platform_mcp*"]
 
 [tool.setuptools.package-data]
-platform_mcp = ["*.md"]
+platform_mcp = ["*.md", "static/platform_mcp/connect/*.png", "static/platform_mcp/connect/*/*.png"]
 
 [tool.ruff]
 line-length = 100

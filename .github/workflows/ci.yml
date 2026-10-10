@@ -62,5 +62,8 @@ jobs:
         working-directory: platform-mcp/frontend
       - run: npm run lint
         working-directory: platform-mcp/frontend
+      - name: README client section matches src/lib/clients.ts
+        run: npm run readme:check
+        working-directory: platform-mcp/frontend
       - run: npm run build
         working-directory: platform-mcp/frontend

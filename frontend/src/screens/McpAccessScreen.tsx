@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode, type SubmitEvent } from "react";
-import { Button, Card, CardBody, CardHeader, CardTitle, CodeBlock, CopyButton, FormControl, FormLabel, Modal } from "platform-core";
+import { useCallback, useEffect, useState, useSyncExternalStore, type SubmitEvent } from "react";
+import { Button, Card, CardBody, CardHeader, CardTitle, CopyButton, FormControl, FormLabel, Modal } from "platform-core";
 import {
   API_BASE_URL,
   MCP_PATH,
@@ -14,21 +14,12 @@ import {
   type CreatedAccessToken,
   type ServerInfo,
 } from "../lib/api";
-import { MCP_CLIENTS } from "../lib/clients";
+import McpConnectGuide from "./McpConnectGuide";
 
 export interface McpAccessScreenProps {
   /** The logged-in session's access token - token management is session-only. */
   accessToken: string;
 }
-
-const TOKEN_PLACEHOLDER = "<your-token>";
-
-const CLIENT_STYLE = { background: "transparent", boxShadow: "none" };
-const SELECTED_CLIENT_STYLE = {
-  background: "var(--tblr-primary-lt, rgba(32, 107, 196, 0.08))",
-  color: "var(--tblr-primary, #206bc4)",
-  boxShadow: "none",
-};
 
 const EXPIRY_OPTIONS = [
   { label: "30 days", days: 30 },
@@ -46,19 +37,13 @@ function formatDate(value: string | null, empty = "—"): string {
 const subscribeNever = () => () => {};
 const absoluteMcpUrl = () => new URL(`${API_BASE_URL}${MCP_PATH}`, window.location.origin).toString();
 
-/** Renders `code` spans in a guide step. */
-function renderInline(text: string): ReactNode {
-  return text.split("`").map((part, index) => (index % 2 ? <code key={index}>{part}</code> : <Fragment key={index}>{part}</Fragment>));
-}
-
-
 /**
  * The "MCP access" page: the caller's personal access tokens (create,
  * revoke - a token is shown once, right after it's created), the apps
  * connected through OAuth (e.g. a Claude connector; disconnect) and a
- * per-client guide for connecting an AI client to the MCP server, its
- * snippets filled in with this server's URL and name (asked from the
- * server itself) and the just-created token.
+ * connect wizard (`McpConnectGuide`: pick the client, follow its steps -
+ * filled in with this server's URL and name, asked from the server
+ * itself, and the just-created token - and see it connect).
  */
 function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
   const [tokens, setTokens] = useState<AccessToken[] | null>(null);
@@ -67,7 +52,6 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
   const [created, setCreated] = useState<CreatedAccessToken | null>(null);
   const [server, setServer] = useState<ServerInfo | null>(null);
   const mcpUrl = useSyncExternalStore(subscribeNever, absoluteMcpUrl, () => `${API_BASE_URL}${MCP_PATH}`);
-  const [clientId, setClientId] = useState(MCP_CLIENTS[0].id);
   const [apps, setApps] = useState<ConnectedApp[] | null>(null);
 
   const refresh = useCallback(() => {
@@ -115,15 +99,13 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
 
   const skillsUrl = `${mcpUrl}/skills`;
   const skillsPrompt = `Install the ${server?.name ?? "MCP"} skills from ${skillsUrl}`;
-  const client = MCP_CLIENTS.find((candidate) => candidate.id === clientId) ?? MCP_CLIENTS[0];
-  const snippet = client.snippet({ name: server?.name ?? "mcp", url: mcpUrl, token: created?.token ?? TOKEN_PLACEHOLDER });
 
   return (
     <div className="container-xl py-3">
       <div className="mb-3">
         <h2 className="page-title">MCP access</h2>
         <div className="text-secondary">
-          Let an AI assistant (Claude, Codex, Cursor, …) read and update your data through the MCP server. It can do
+          Let an AI assistant (Claude, ChatGPT, Gemini, Cursor, …) read and update your data through the MCP server. It can do
           exactly what you can, nothing more.
         </div>
       </div>
@@ -266,47 +248,16 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
             )}
           </small>
         </CardBody>
-        <div className="row g-0">
-          <div className="col-12 col-md-auto border-end" style={{ minWidth: 200 }}>
-            <CardBody>
-              <div className="subheader mb-2">Client</div>
-              <div className="d-flex flex-column gap-1" role="tablist" aria-orientation="vertical">
-                {MCP_CLIENTS.map((candidate) => (
-                  <button
-                    key={candidate.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={candidate.id === client.id}
-                    className={`btn btn-sm w-100 justify-content-start border-0 ${candidate.id === client.id ? "fw-bold" : "text-secondary"}`}
-                    style={candidate.id === client.id ? SELECTED_CLIENT_STYLE : CLIENT_STYLE}
-                    onClick={() => setClientId(candidate.id)}
-                  >
-                    {candidate.label}
-                  </button>
-                ))}
-              </div>
-            </CardBody>
-          </div>
-          <div className="col-12 col-md" role="tabpanel" style={{ minWidth: 0 }}>
-            <CardBody>
-              <h3 className="card-title mb-3">{client.label}</h3>
-              {!created && client.usesToken !== false && (
-                <p className="text-secondary">
-                  Replace <code>{TOKEN_PLACEHOLDER}</code> with a token, or create one above and it's filled in here.
-                </p>
-              )}
-              <ol className="ps-3">
-                {client.steps.map((step) => (
-                  <li key={step} className="mb-1">
-                    {renderInline(step)}
-                  </li>
-                ))}
-              </ol>
-              <CodeBlock code={snippet} className="mb-2" />
-              <div className="text-secondary">{renderInline(client.verify)}</div>
-            </CardBody>
-          </div>
-        </div>
+        <CardBody>
+          <McpConnectGuide
+            accessToken={accessToken}
+            token={created?.token}
+            onChange={() => {
+              refresh();
+              refreshApps();
+            }}
+          />
+        </CardBody>
       </Card>
 
       <Card className="mt-3">
