@@ -6,6 +6,8 @@ class PlatformMcpConfig(AppConfig):
     name = "platform_mcp"
 
     def ready(self):
+        from platform_mcp import openapi  # noqa: F401 - registers its OpenAPI auth scheme(s)
+
         from core_api.system import register_export_provider, register_session_provider, user_removed
         from platform_mcp.accounts import PROVIDERS, export, on_user_removed
 

@@ -180,6 +180,18 @@ every URL in the metadata.
 Gap: the registry path is resolved as-is, so a module mounted under a
 gateway prefix the backend never sees would 404.
 
+## API reference (OpenAPI)
+
+`platform_mcp/openapi.py` describes the two MCP authentication classes
+(`mcpPersonalAccessToken`, `mcpOAuth`; imported in
+`PlatformMcpConfig.ready`) - add one there for any new authentication
+class, or the host's OpenAPI test fails. The MCP endpoint itself is one
+JSON-RPC operation; its tools describe themselves over MCP, not in
+OpenAPI. Tokens, grants and the OAuth endpoints still show only their
+docstrings - annotate them with `@extend_schema`, and
+`@extend_schema(exclude=True)` the browser-only OAuth steps. How:
+GoalNexa's `docs/api-reference.md`.
+
 ## Frontend (`platform-mcp-frontend`)
 
 `createMcpNavItems(basePath)` (`src/mcpNav.tsx`, from `"."`) is its

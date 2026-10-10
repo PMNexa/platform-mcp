@@ -233,7 +233,7 @@ def _with_overrides(tool: dict) -> dict:
 
 def _tools_for(key: str, schema: dict) -> list[dict]:
     """The tools one resource gets, derived from its `schema` action's
-    response (see `BaseViewSet.schema`)."""
+    response (see `BaseViewSet.resource_schema`)."""
     fields = schema["fields"]
     one, many = schema["label"], schema["label_plural"]
     One, Many = one[:1].upper() + one[1:], many[:1].upper() + many[1:]
