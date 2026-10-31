@@ -179,6 +179,8 @@ def _field_schema(field: dict) -> dict:
         tools = {path: key for key, path in _resources().items()}
         key = tools.get((field.get("related_endpoint") or "").rstrip("/"))
         schema = {**_ID_SCHEMA, "description": f"Id of a row from `{key}_list`." if key else "Id of a related row."}
+    elif field["type"] == "list":
+        schema = {"type": "array", "items": _items_schema(field.get("items") or {})}
     else:
         schema = dict(_TYPE_SCHEMAS.get(field["type"], {"type": "string"}))
         if field.get("format") == "uuid":
@@ -194,6 +196,15 @@ def _field_schema(field: dict) -> dict:
     if field.get("help_text"):
         schema["description"] = " ".join(filter(None, [field["help_text"], schema.get("description")]))
     return schema
+
+
+def _items_schema(items: dict) -> dict:
+    """One element of a `list` field: an object with the nested fields
+    (platform-core's `items.fields`), or a plain value."""
+    if items.get("type") == "object":
+        fields = items.get("fields") or []
+        return _object_schema({f["name"]: _field_schema(f) for f in fields}, [f["name"] for f in fields if f["required"]])
+    return _field_schema({"label": "item", **items, "type": items.get("type", "string")})
 
 
 def _object_schema(properties: dict, required=()) -> dict:

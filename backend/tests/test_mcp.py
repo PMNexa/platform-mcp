@@ -55,6 +55,40 @@ class McpTests(TestCase):
         self.assertIn("q", tools["books_list"]["inputSchema"]["properties"])
         self.assertNotIn("q", tools["tags_list"]["inputSchema"]["properties"])
 
+    def test_list_field_is_an_array_input(self):
+        schema = {
+            "label": "concept",
+            "label_plural": "concepts",
+            "fields": [
+                {"name": "name", "type": "string", "required": True, "read_only": False, "label": "Name"},
+                {
+                    "name": "evidence",
+                    "type": "list",
+                    "required": True,
+                    "read_only": False,
+                    "label": "Evidence",
+                    "items": {
+                        "type": "object",
+                        "fields": [
+                            {"name": "chunk", "type": "string", "required": True, "read_only": False, "label": "Chunk"},
+                            {"name": "role", "type": "string", "required": False, "read_only": False, "label": "Role", "choices": [{"value": "defines", "label": "Defines"}]},
+                            {"name": "stale", "type": "boolean", "required": False, "read_only": True, "label": "Stale"},
+                        ],
+                    },
+                },
+                {"name": "keywords", "type": "list", "required": False, "read_only": False, "label": "Keywords", "items": {"type": "string", "required": True, "read_only": False, "label": "item"}},
+            ],
+        }
+        tools = {tool["name"]: tool for tool in _tools_for("concepts", schema)}
+        create = tools["concepts_create"]["inputSchema"]
+        self.assertEqual(create["required"], ["name", "evidence"])
+        evidence = create["properties"]["evidence"]
+        self.assertEqual(evidence["type"], "array")
+        self.assertEqual(evidence["items"]["required"], ["chunk"])
+        self.assertEqual(evidence["items"]["properties"]["role"]["enum"], ["defines"])
+        self.assertEqual(evidence["items"]["properties"]["stale"]["type"], "boolean")
+        self.assertEqual(create["properties"]["keywords"], {"type": "array", "items": {"type": "string", "title": "item"}, "title": "Keywords"})
+
     def test_read_only_parent_relation_is_an_input(self):
         schema = {
             "label": "check-in",
