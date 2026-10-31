@@ -240,7 +240,11 @@ def _tools_for(key: str, schema: dict) -> list[dict]:
     # A read-only to-one relation stays an input: this platform's views set
     # a child's parent from the request body themselves (a check-in's
     # `metric`, scoped to the caller), the same key the UI's forms send.
-    writable = [f for f in fields if not f.get("many") and (not f["read_only"] or f["type"] == "relation")]
+    # A file field is left out: it travels as multipart, which a tool call
+    # can't carry - the row is created here and the file added in the UI.
+    writable = [
+        f for f in fields if not f.get("many") and f["type"] != "file" and (not f["read_only"] or f["type"] == "relation")
+    ]
     write_props = {f["name"]: _field_schema(f) for f in writable}
     includable = [f["name"] for f in fields if f["type"] == "relation"]
     m2m = [f for f in fields if f.get("kind") == "many_to_many"]
