@@ -1,9 +1,11 @@
 import { useLocation, useOutletContext } from "react-router";
 import McpAuthorizeScreen from "../screens/McpAuthorizeScreen";
+import { localeFromMatches, translator } from "platform-core";
+import titles from "./titles.messages";
 
 // oxlint-disable-next-line react/only-export-components
-export function meta() {
-  return [{ title: "Connect an app" }];
+export function meta({ matches }: { matches?: readonly unknown[] }) {
+  return [{ title: translator(titles, localeFromMatches(matches))("connectAnApp") }];
 }
 
 /**

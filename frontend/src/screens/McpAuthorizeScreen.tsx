@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Button, Card, CardBody } from "platform-core";
+import { Button, Card, CardBody, useT } from "platform-core";
 import { AuthorizationError, checkAuthorization, decideAuthorization, type AuthorizationRequest } from "../lib/api";
+import messages from "./McpAuthorizeScreen.messages";
 
 export interface McpAuthorizeScreenProps {
   /** The logged-in session's access token - only a signed-in user can approve. */
@@ -38,6 +39,7 @@ function errorState(thrown: unknown): State {
  */
 function McpAuthorizeScreen({ accessToken, search }: McpAuthorizeScreenProps) {
   const [state, setState] = useState<State>({ status: "loading" });
+  const t = useT(messages);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,17 +64,17 @@ function McpAuthorizeScreen({ accessToken, search }: McpAuthorizeScreenProps) {
     <div className="container-tight py-4">
       <Card>
         <CardBody>
-          {state.status === "loading" && <p className="text-secondary mb-0">Checking the request…</p>}
-          {state.status === "sending" && <p className="text-secondary mb-0">Returning you to the app…</p>}
+          {state.status === "loading" && <p className="text-secondary mb-0">{t("checking")}</p>}
+          {state.status === "sending" && <p className="text-secondary mb-0">{t("returning")}</p>}
           {state.status === "error" && (
             <>
-              <h2 className="card-title">Can't connect this app</h2>
+              <h2 className="card-title">{t("cantConnect")}</h2>
               <div className="alert alert-danger" role="alert">
                 {state.message}
               </div>
               {state.redirectTo && (
                 <Button variant="secondary" outline onClick={() => window.location.assign(state.redirectTo!)}>
-                  Return to the app
+                  {t("returnToApp")}
                 </Button>
               )}
             </>
@@ -80,22 +82,16 @@ function McpAuthorizeScreen({ accessToken, search }: McpAuthorizeScreenProps) {
           {state.status === "ready" && (
             <>
               <h2 className="card-title mb-3">
-                Connect {state.request.client_name} to {state.request.server_name}?
+                {t("title", { client: state.request.client_name, server: state.request.server_name })}
               </h2>
-              <p>
-                <strong>{state.request.client_name}</strong> will be able to read and change your data through the MCP
-                server: everything you can do in {state.request.server_name}, nothing more.
-              </p>
-              <p className="text-secondary">
-                After you allow it, you'll go back to <strong>{hostOf(state.request.redirect_uri)}</strong>. Only allow
-                apps you started connecting yourself. You can disconnect it any time on the MCP access page.
-              </p>
+              <p>{t.rich("canDo", { client: state.request.client_name, server: state.request.server_name })}</p>
+              <p className="text-secondary">{t.rich("afterAllow", { host: hostOf(state.request.redirect_uri) })}</p>
               <div className="d-flex gap-2 justify-content-end">
                 <Button variant="secondary" outline onClick={() => void decide(false)}>
-                  Cancel
+                  {t("cancel")}
                 </Button>
                 <Button variant="primary" onClick={() => void decide(true)}>
-                  Allow
+                  {t("allow")}
                 </Button>
               </div>
             </>

@@ -1,4 +1,5 @@
-import type { NavEntry } from "platform-core";
+import { translate, type NavEntry } from "platform-core";
+import messages from "./screens/McpAccessScreen.messages";
 
 /** Tabler Icons "key" (outline, MIT) - inlined, no icon font. */
 function McpIcon() {
@@ -25,8 +26,9 @@ function McpIcon() {
 /**
  * The "MCP access" sidebar link for the host's AppShell - pass the SAME
  * `basePath` as `createMcpRoutes(basePath)`. No `permission`: every
- * signed-in user manages their own access tokens.
+ * signed-in user manages their own access tokens. The label is in the
+ * current language - call it during render.
  */
 export function createMcpNavItems(basePath: string): NavEntry[] {
-  return [{ label: "MCP access", to: `/${basePath.replace(/^\/+|\/+$/g, "")}`, icon: <McpIcon /> }];
+  return [{ label: translate(messages, "navLabel"), to: `/${basePath.replace(/^\/+|\/+$/g, "")}`, icon: <McpIcon /> }];
 }

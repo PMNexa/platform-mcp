@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useState, useSyncExternalStore, type SubmitEvent } from "react";
-import { Button, Card, CardBody, CardHeader, CardTitle, CopyButton, FormControl, FormLabel, Modal } from "platform-core";
+import {
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  CopyButton,
+  FormControl,
+  FormLabel,
+  Modal,
+  formatDateTime,
+  formatNumber,
+  useLocale,
+  useT,
+  type Locale,
+} from "platform-core";
 import {
   API_BASE_URL,
   MCP_PATH,
@@ -15,6 +30,7 @@ import {
   type ServerInfo,
 } from "../lib/api";
 import McpConnectGuide from "./McpConnectGuide";
+import messages from "./McpAccessScreen.messages";
 
 export interface McpAccessScreenProps {
   /** The logged-in session's access token - token management is session-only. */
@@ -22,14 +38,14 @@ export interface McpAccessScreenProps {
 }
 
 const EXPIRY_OPTIONS = [
-  { label: "30 days", days: 30 },
-  { label: "90 days", days: 90 },
-  { label: "1 year", days: 365 },
-  { label: "Never", days: null },
-];
+  { label: "days30", days: 30 },
+  { label: "days90", days: 90 },
+  { label: "year1", days: 365 },
+  { label: "never", days: null },
+] as const;
 
-function formatDate(value: string | null, empty = "—"): string {
-  return value ? new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : empty;
+function formatDate(value: string | null, locale: Locale, empty = "—"): string {
+  return value ? formatDateTime(value, { dateStyle: "medium", timeStyle: "short" }, locale) : empty;
 }
 
 // The snippets need an absolute URL, which only the browser knows - the
@@ -53,6 +69,8 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
   const [server, setServer] = useState<ServerInfo | null>(null);
   const mcpUrl = useSyncExternalStore(subscribeNever, absoluteMcpUrl, () => `${API_BASE_URL}${MCP_PATH}`);
   const [apps, setApps] = useState<ConnectedApp[] | null>(null);
+  const t = useT(messages);
+  const locale = useLocale();
 
   const refresh = useCallback(() => {
     listTokens(accessToken)
@@ -71,7 +89,7 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
   useEffect(refreshApps, [refreshApps]);
 
   async function handleDisconnect(app: ConnectedApp) {
-    if (!window.confirm(`Disconnect "${app.client_name}"? It loses access immediately.`)) return;
+    if (!window.confirm(t("confirmDisconnect", { name: app.client_name }))) return;
     try {
       await disconnectApp(accessToken, app.id);
       refreshApps();
@@ -87,7 +105,7 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
   }, [accessToken]);
 
   async function handleRevoke(token: AccessToken) {
-    if (!window.confirm(`Revoke "${token.name}"? Any client using it stops working immediately.`)) return;
+    if (!window.confirm(t("confirmRevoke", { name: token.name }))) return;
     try {
       await revokeToken(accessToken, token.id);
       if (created?.id === token.id) setCreated(null);
@@ -103,11 +121,8 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
   return (
     <div className="container-xl py-3">
       <div className="mb-3">
-        <h2 className="page-title">MCP access</h2>
-        <div className="text-secondary">
-          Let an AI assistant (Claude, ChatGPT, Gemini, Cursor, …) read and update your data through the MCP server. It can do
-          exactly what you can, nothing more.
-        </div>
+        <h2 className="page-title">{t("title")}</h2>
+        <div className="text-secondary">{t("intro")}</div>
       </div>
 
       {error && (
@@ -118,10 +133,10 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
 
       <Card className="mb-3">
         <CardHeader>
-          <CardTitle>Personal access tokens</CardTitle>
+          <CardTitle>{t("tokensTitle")}</CardTitle>
           <div className="card-actions">
             <Button variant="primary" onClick={() => setCreating(true)}>
-              New token
+              {t("newToken")}
             </Button>
           </div>
         </CardHeader>
@@ -129,10 +144,8 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
           <CardBody className="border-bottom">
             <div className="alert alert-success mb-0" role="status">
               <div className="flex-fill">
-                <h4 className="alert-title">Token “{created.name}” created</h4>
-                <div className="text-secondary mb-2">
-                  Copy it now: it won't be shown again. The setup steps below already include it.
-                </div>
+                <h4 className="alert-title">{t("tokenCreated", { name: created.name })}</h4>
+                <div className="text-secondary mb-2">{t("copyNow")}</div>
                 <div className="d-flex gap-2 align-items-center">
                   <code className="flex-fill text-break p-2" style={{ userSelect: "all" }}>
                     {created.token}
@@ -144,19 +157,19 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
           </CardBody>
         )}
         {tokens === null ? (
-          <CardBody className="text-secondary">Loading…</CardBody>
+          <CardBody className="text-secondary">{t("loading")}</CardBody>
         ) : tokens.length === 0 ? (
-          <CardBody className="text-secondary">No tokens yet. Create one for each client you connect.</CardBody>
+          <CardBody className="text-secondary">{t("noTokens")}</CardBody>
         ) : (
           <div className="table-responsive">
             <table className="table table-vcenter card-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Token</th>
-                  <th>Created</th>
-                  <th>Last used</th>
-                  <th>Expires</th>
+                  <th>{t("colName")}</th>
+                  <th>{t("colToken")}</th>
+                  <th>{t("colCreated")}</th>
+                  <th>{t("colLastUsed")}</th>
+                  <th>{t("colExpires")}</th>
                   <th className="w-1" />
                 </tr>
               </thead>
@@ -169,14 +182,14 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
                       <td>
                         <code>{token.prefix}…</code>
                       </td>
-                      <td className="text-secondary">{formatDate(token.created_at)}</td>
-                      <td className="text-secondary">{formatDate(token.last_used_at, "Never")}</td>
+                      <td className="text-secondary">{formatDate(token.created_at, locale)}</td>
+                      <td className="text-secondary">{formatDate(token.last_used_at, locale, t("never"))}</td>
                       <td className={expired ? "text-danger" : "text-secondary"}>
-                        {expired ? "Expired" : formatDate(token.expires_at, "Never")}
+                        {expired ? t("expired") : formatDate(token.expires_at, locale, t("never"))}
                       </td>
                       <td>
                         <Button variant="danger" outline onClick={() => void handleRevoke(token)}>
-                          Revoke
+                          {t("revoke")}
                         </Button>
                       </td>
                     </tr>
@@ -190,22 +203,20 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
 
       <Card className="mb-3">
         <CardHeader>
-          <CardTitle>Connected apps</CardTitle>
+          <CardTitle>{t("appsTitle")}</CardTitle>
         </CardHeader>
         {apps === null ? (
-          <CardBody className="text-secondary">Loading…</CardBody>
+          <CardBody className="text-secondary">{t("loading")}</CardBody>
         ) : apps.length === 0 ? (
-          <CardBody className="text-secondary">
-            None yet. Apps that sign in instead of using a token, like a Claude connector, show up here.
-          </CardBody>
+          <CardBody className="text-secondary">{t("noApps")}</CardBody>
         ) : (
           <div className="table-responsive">
             <table className="table table-vcenter card-table">
               <thead>
                 <tr>
-                  <th>App</th>
-                  <th>Connected</th>
-                  <th>Last used</th>
+                  <th>{t("colApp")}</th>
+                  <th>{t("colConnected")}</th>
+                  <th>{t("colLastUsed")}</th>
                   <th className="w-1" />
                 </tr>
               </thead>
@@ -213,11 +224,11 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
                 {apps.map((app) => (
                   <tr key={app.id}>
                     <td>{app.client_name}</td>
-                    <td className="text-secondary">{formatDate(app.created_at)}</td>
-                    <td className="text-secondary">{formatDate(app.last_used_at, "Never")}</td>
+                    <td className="text-secondary">{formatDate(app.created_at, locale)}</td>
+                    <td className="text-secondary">{formatDate(app.last_used_at, locale, t("never"))}</td>
                     <td>
                       <Button variant="danger" outline onClick={() => void handleDisconnect(app)}>
-                        Disconnect
+                        {t("disconnect")}
                       </Button>
                     </td>
                   </tr>
@@ -230,22 +241,17 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Connect an AI client</CardTitle>
+          <CardTitle>{t("connectTitle")}</CardTitle>
         </CardHeader>
         <CardBody className="border-bottom">
-          <FormLabel htmlFor="mcp-server-url">Server URL</FormLabel>
+          <FormLabel htmlFor="mcp-server-url">{t("serverUrl")}</FormLabel>
           <div className="d-flex gap-2">
             <FormControl id="mcp-server-url" readOnly value={mcpUrl} onFocus={(event) => event.target.select()} />
             <CopyButton text={mcpUrl} />
           </div>
           <small className="form-hint">
-            Streamable HTTP transport, authenticated with OAuth or <code>Authorization: Bearer &lt;token&gt;</code>
-            {server && (
-              <>
-                {" "}
-                · server name <code>{server.name}</code> · {server.toolCount} tools
-              </>
-            )}
+            {t.rich("transportHint", { header: "Authorization: Bearer <token>" })}
+            {server && t.rich("serverFacts", { name: server.name, tools: formatNumber(server.toolCount, undefined, locale) })}
           </small>
         </CardBody>
         <CardBody>
@@ -262,24 +268,15 @@ function McpAccessScreen({ accessToken }: McpAccessScreenProps) {
 
       <Card className="mt-3">
         <CardHeader>
-          <CardTitle>Agent skills</CardTitle>
+          <CardTitle>{t("skillsTitle")}</CardTitle>
         </CardHeader>
         <CardBody>
-          <p className="text-secondary">
-            Skills are ready-made playbooks that teach your assistant the everyday jobs in{" "}
-            {server?.name ?? "this app"}, on top of the raw tools. To install them, paste this into Claude Code, Codex or
-            any agent that supports skills. It also walks through connecting the server if that isn't done yet.
-          </p>
+          <p className="text-secondary">{t("skillsIntro", { app: server?.name ?? t("thisApp") })}</p>
           <div className="d-flex gap-2">
             <FormControl id="mcp-skills-prompt" readOnly value={skillsPrompt} onFocus={(event) => event.target.select()} />
             <CopyButton text={skillsPrompt} />
           </div>
-          <small className="form-hint">
-            <a href={skillsUrl} target="_blank" rel="noreferrer">
-              See what gets installed
-            </a>
-            . Run the same prompt again to update them.
-          </small>
+          <small className="form-hint">{t.rich("skillsHint", { url: skillsUrl })}</small>
         </CardBody>
       </Card>
 
@@ -308,19 +305,20 @@ function NewTokenModal({
   onClose: () => void;
   onCreated: (token: CreatedAccessToken) => void;
 }) {
+  const t = useT(messages);
   return (
     <Modal
       open={open}
       onClose={onClose}
       size="sm"
-      title="New personal access token"
+      title={t("newTokenTitle")}
       footer={
         <>
           <Button variant="secondary" outline onClick={onClose}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button type="submit" variant="primary" form="mcp-new-token-form">
-            Create token
+            {t("createToken")}
           </Button>
         </>
       }
@@ -336,6 +334,7 @@ function NewTokenForm({ accessToken, onCreated }: { accessToken: string; onCreat
   const [expiry, setExpiry] = useState("90");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useT(messages);
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -354,20 +353,20 @@ function NewTokenForm({ accessToken, onCreated }: { accessToken: string; onCreat
     <form id="mcp-new-token-form" onSubmit={handleSubmit}>
       <div className="mb-3">
         <FormLabel htmlFor="mcp-token-name" required>
-          Name
+          {t("colName")}
         </FormLabel>
         <FormControl
           id="mcp-token-name"
           required
           autoFocus
           maxLength={100}
-          placeholder="e.g. Claude Code on my laptop"
+          placeholder={t("tokenNamePlaceholder")}
           value={name}
           onChange={(event) => setName(event.target.value)}
         />
       </div>
       <div>
-        <FormLabel htmlFor="mcp-token-expiry">Expires after</FormLabel>
+        <FormLabel htmlFor="mcp-token-expiry">{t("expiresAfter")}</FormLabel>
         <select
           id="mcp-token-expiry"
           className="form-select"
@@ -376,7 +375,7 @@ function NewTokenForm({ accessToken, onCreated }: { accessToken: string; onCreat
         >
           {EXPIRY_OPTIONS.map((option) => (
             <option key={option.label} value={option.days ?? ""}>
-              {option.label}
+              {t(option.label)}
             </option>
           ))}
         </select>
