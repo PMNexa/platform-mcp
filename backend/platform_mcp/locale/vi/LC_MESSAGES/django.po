@@ -1,0 +1,59 @@
+# platform_mcp: the API's user-visible texts. Written by `manage.py collect_ui_strings`;
+# fill in msgstr, then `msgfmt -o django.mo django.po`.
+msgid ""
+msgstr ""
+"Project-Id-Version: platform_mcp\n"
+"Language: vi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: insight mcp_connected
+msgid "A personal access token or an OAuth connection that still exists."
+msgstr "Một token truy cập cá nhân hoặc một kết nối OAuth vẫn còn hiệu lực."
+
+#: insight mcp_calls
+#: insight mcp_connected
+msgid "AI assistants"
+msgstr "Trợ lý AI"
+
+#: session provider mcp_connections
+msgid "Connected AI apps"
+msgstr "Ứng dụng AI đã kết nối"
+
+#: platform-mcp/backend/platform_mcp/authentication.py:86
+msgid "Invalid or expired access token."
+msgstr "Token truy cập không hợp lệ hoặc đã hết hạn."
+
+#: platform-mcp/backend/platform_mcp/authentication.py:56
+msgid "Invalid personal access token."
+msgstr "Token truy cập cá nhân không hợp lệ."
+
+#: platform-mcp/backend/platform_mcp/server.py:207
+msgid "item"
+msgstr "mục"
+
+#: session provider mcp_tokens
+msgid "MCP access tokens"
+msgstr "Token truy cập MCP"
+
+#: insight mcp_calls
+msgid "MCP tool calls"
+msgstr "Lượt gọi công cụ MCP"
+
+#: platform-mcp/backend/platform_mcp/oauth.py:422
+msgid "The app asked to be sent back to an address it didn't register."
+msgstr "Ứng dụng yêu cầu chuyển về một địa chỉ mà nó chưa đăng ký."
+
+#: platform-mcp/backend/platform_mcp/oauth.py:419
+msgid "This app isn't registered with this server. Try connecting it again."
+msgstr "Ứng dụng này chưa đăng ký với máy chủ này. Hãy thử kết nối lại."
+
+#: platform-mcp/backend/platform_mcp/authentication.py:58
+msgid "This personal access token has expired."
+msgstr "Token truy cập cá nhân này đã hết hạn."
+
+#: insight mcp_connected
+msgid "Users with an assistant connected"
+msgstr "Người dùng đã kết nối trợ lý"
